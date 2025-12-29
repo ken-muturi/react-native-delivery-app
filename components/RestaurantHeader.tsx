@@ -77,10 +77,12 @@ const RestaurantHeader = ({ title, scrollOffset }: RestaurantHeaderProps) => {
   });
 
   return (
-    <Animated.View style={[styles.headerContainer, shadowStyle, { paddingTop: insets.top }]}>
+    <Animated.View
+      style={[styles.headerContainer, shadowStyle, { paddingTop: insets.top }]}
+    >
       {/* Header 1 */}
       <Animated.View style={[styles.header1, header1Style]}>
-        <Link href={'/(app)/(auth)/(modal)/location'} asChild>
+        <Link href={"/(app)/(auth)/(modal)/location"} asChild>
           <TouchableOpacity style={styles.locationButton}>
             <View style={styles.locationButtonIcon}>
               <Ionicons name="business-outline" size={16} />
@@ -91,14 +93,16 @@ const RestaurantHeader = ({ title, scrollOffset }: RestaurantHeaderProps) => {
         </Link>
 
         <View style={styles.rightIcons}>
-          <Link href={'/(app)/(auth)/(modal)/filter'} asChild>
+          <Link href={"/(app)/(auth)/(modal)/filter"} asChild>
             <TouchableOpacity style={styles.iconButton}>
               <Ionicons name="filter" size={20} />
             </TouchableOpacity>
           </Link>
-          <TouchableOpacity style={styles.iconButton}>
-            <Ionicons name="map-outline" size={20} />
-          </TouchableOpacity>
+          <Link href={"/(app)/(auth)/(modal)/map"} asChild>
+            <TouchableOpacity style={styles.iconButton}>
+              <Ionicons name="map-outline" size={20} />
+            </TouchableOpacity>
+          </Link>
         </View>
       </Animated.View>
 
@@ -106,7 +110,7 @@ const RestaurantHeader = ({ title, scrollOffset }: RestaurantHeaderProps) => {
       <Animated.View style={[styles.header2, header2Style]}>
         <View style={styles.centerContent}>
           <Text style={styles.titleSmall}>{title}</Text>
-          <Link href={'/(app)/(auth)/(modal)/location'} asChild>
+          <Link href={"/(app)/(auth)/(modal)/location"} asChild>
             <TouchableOpacity style={styles.locationSmall}>
               <Text style={styles.locationSmallText}>Münster</Text>
               <Ionicons name="chevron-down" size={14} />
@@ -114,7 +118,7 @@ const RestaurantHeader = ({ title, scrollOffset }: RestaurantHeaderProps) => {
           </Link>
         </View>
         <View style={styles.rightIcons}>
-          <Link href={'/(app)/(auth)/(modal)/filter'} asChild>
+          <Link href={"/(app)/(auth)/(modal)/filter"} asChild>
             <TouchableOpacity style={styles.iconButton}>
               <Ionicons name="filter" size={20} />
             </TouchableOpacity>
