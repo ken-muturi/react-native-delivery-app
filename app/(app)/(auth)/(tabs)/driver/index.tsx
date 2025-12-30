@@ -1,6 +1,7 @@
 import { Colors } from '@/constants/theme';
 import useOrderStore, { Order, OrderStatus } from '@/hooks/use-orderstore';
 import { Ionicons } from '@expo/vector-icons';
+import { useRouter } from "expo-router";
 import { useCallback, useState } from 'react';
 import {
   Alert,
@@ -31,6 +32,7 @@ const statusLabels: Record<OrderStatus, string> = {
 
 const DriverOrdersScreen = () => {
   const insets = useSafeAreaInsets();
+  const router = useRouter();
   const { orders, updateOrderStatus, addOrder } = useOrderStore();
   const [activeTab, setActiveTab] = useState<TabType>('new');
   const [refreshing, setRefreshing] = useState(false);
@@ -181,8 +183,18 @@ const DriverOrdersScreen = () => {
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Driver Dashboard</Text>
         <View style={styles.headerRight}>
-          <TouchableOpacity style={styles.addOrderButton} onPress={addTestOrder}>
-            <Ionicons name="add-circle-outline" size={24} color={Colors.primary} />
+          <TouchableOpacity
+            style={styles.iconButton}
+            onPress={() => router.push("/driver/map")}
+          >
+            <Ionicons name="map-outline" size={22} color={Colors.primary} />
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.iconButton} onPress={addTestOrder}>
+            <Ionicons
+              name="add-circle-outline"
+              size={22}
+              color={Colors.primary}
+            />
           </TouchableOpacity>
           <View style={styles.headerBadge}>
             <Ionicons name="bicycle" size={20} color={Colors.primary} />
@@ -193,31 +205,55 @@ const DriverOrdersScreen = () => {
 
       <View style={styles.tabContainer}>
         <TouchableOpacity
-          style={[styles.tab, activeTab === 'new' && styles.activeTab]}
-          onPress={() => setActiveTab('new')}>
-          <Text style={[styles.tabText, activeTab === 'new' && styles.activeTabText]}>
-            New ({orders.filter((o) => o.status === 'new').length})
+          style={[styles.tab, activeTab === "new" && styles.activeTab]}
+          onPress={() => setActiveTab("new")}
+        >
+          <Text
+            style={[
+              styles.tabText,
+              activeTab === "new" && styles.activeTabText,
+            ]}
+          >
+            New ({orders.filter((o) => o.status === "new").length})
           </Text>
         </TouchableOpacity>
         <TouchableOpacity
-          style={[styles.tab, activeTab === 'collected' && styles.activeTab]}
-          onPress={() => setActiveTab('collected')}>
-          <Text style={[styles.tabText, activeTab === 'collected' && styles.activeTabText]}>
-            Collected ({orders.filter((o) => o.status === 'collected').length})
+          style={[styles.tab, activeTab === "collected" && styles.activeTab]}
+          onPress={() => setActiveTab("collected")}
+        >
+          <Text
+            style={[
+              styles.tabText,
+              activeTab === "collected" && styles.activeTabText,
+            ]}
+          >
+            Collected ({orders.filter((o) => o.status === "collected").length})
           </Text>
         </TouchableOpacity>
         <TouchableOpacity
-          style={[styles.tab, activeTab === 'in-transit' && styles.activeTab]}
-          onPress={() => setActiveTab('in-transit')}>
-          <Text style={[styles.tabText, activeTab === 'in-transit' && styles.activeTabText]}>
-            Transit ({orders.filter((o) => o.status === 'in-transit').length})
+          style={[styles.tab, activeTab === "in-transit" && styles.activeTab]}
+          onPress={() => setActiveTab("in-transit")}
+        >
+          <Text
+            style={[
+              styles.tabText,
+              activeTab === "in-transit" && styles.activeTabText,
+            ]}
+          >
+            Transit ({orders.filter((o) => o.status === "in-transit").length})
           </Text>
         </TouchableOpacity>
         <TouchableOpacity
-          style={[styles.tab, activeTab === 'delivered' && styles.activeTab]}
-          onPress={() => setActiveTab('delivered')}>
-          <Text style={[styles.tabText, activeTab === 'delivered' && styles.activeTabText]}>
-            Done ({orders.filter((o) => o.status === 'delivered').length})
+          style={[styles.tab, activeTab === "delivered" && styles.activeTab]}
+          onPress={() => setActiveTab("delivered")}
+        >
+          <Text
+            style={[
+              styles.tabText,
+              activeTab === "delivered" && styles.activeTabText,
+            ]}
+          >
+            Done ({orders.filter((o) => o.status === "delivered").length})
           </Text>
         </TouchableOpacity>
       </View>
@@ -228,7 +264,9 @@ const DriverOrdersScreen = () => {
         keyExtractor={(item) => item.id}
         contentContainerStyle={styles.listContent}
         ListEmptyComponent={renderEmptyState}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+        }
         showsVerticalScrollIndicator={false}
       />
     </View>
@@ -241,9 +279,9 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.background,
   },
   header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderBottomWidth: 1,
@@ -251,21 +289,26 @@ const styles = StyleSheet.create({
   },
   headerTitle: {
     fontSize: 24,
-    fontWeight: '700',
+    fontWeight: "700",
     color: Colors.dark,
   },
   headerRight: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
   },
-  addOrderButton: {
-    padding: 4,
+  iconButton: {
+    width: 36,
+    height: 36,
+    backgroundColor: Colors.light,
+    borderRadius: 18,
+    alignItems: "center",
+    justifyContent: "center",
   },
   headerBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#E8F5E9',
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#E8F5E9",
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 20,
@@ -273,11 +316,11 @@ const styles = StyleSheet.create({
   },
   onlineText: {
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: "600",
     color: Colors.primary,
   },
   tabContainer: {
-    flexDirection: 'row',
+    flexDirection: "row",
     paddingHorizontal: 16,
     paddingVertical: 12,
     gap: 8,
@@ -287,48 +330,48 @@ const styles = StyleSheet.create({
     paddingVertical: 5,
     borderRadius: 8,
     backgroundColor: Colors.light,
-    alignItems: 'center',
+    alignItems: "center",
   },
   activeTab: {
     backgroundColor: Colors.primary,
   },
   tabText: {
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: "600",
     color: Colors.muted,
   },
   activeTabText: {
-    color: '#fff',
+    color: "#fff",
   },
   listContent: {
     padding: 16,
     paddingBottom: 100,
   },
   orderCard: {
-    backgroundColor: '#fff',
+    backgroundColor: "#fff",
     borderRadius: 12,
     padding: 16,
     marginBottom: 12,
-    shadowColor: '#000',
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 3,
   },
   orderHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
     marginBottom: 12,
   },
   orderIdContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 8,
   },
   orderId: {
     fontSize: 16,
-    fontWeight: '700',
+    fontWeight: "700",
     color: Colors.dark,
   },
   statusBadge: {
@@ -338,27 +381,27 @@ const styles = StyleSheet.create({
   },
   statusText: {
     fontSize: 11,
-    fontWeight: '600',
-    color: '#fff',
+    fontWeight: "600",
+    color: "#fff",
   },
   orderTime: {
     fontSize: 13,
     color: Colors.muted,
   },
   restaurantRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 8,
     marginBottom: 8,
   },
   restaurantName: {
     fontSize: 15,
-    fontWeight: '600',
+    fontWeight: "600",
     color: Colors.dark,
   },
   addressRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
+    flexDirection: "row",
+    alignItems: "flex-start",
     gap: 8,
     marginBottom: 8,
   },
@@ -368,8 +411,8 @@ const styles = StyleSheet.create({
     color: Colors.muted,
   },
   customerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 8,
     marginBottom: 12,
   },
@@ -380,7 +423,7 @@ const styles = StyleSheet.create({
   },
   callButton: {
     padding: 8,
-    backgroundColor: '#E3F2FD',
+    backgroundColor: "#E3F2FD",
     borderRadius: 20,
   },
   itemsContainer: {
@@ -391,7 +434,7 @@ const styles = StyleSheet.create({
   },
   itemsTitle: {
     fontSize: 13,
-    fontWeight: '600',
+    fontWeight: "600",
     color: Colors.muted,
     marginBottom: 4,
   },
@@ -401,13 +444,13 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   orderFooter: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
   },
   totalText: {
     fontSize: 16,
-    fontWeight: '700',
+    fontWeight: "700",
     color: Colors.dark,
   },
   actionButton: {
@@ -417,18 +460,18 @@ const styles = StyleSheet.create({
   },
   actionButtonText: {
     fontSize: 14,
-    fontWeight: '600',
-    color: '#fff',
+    fontWeight: "600",
+    color: "#fff",
   },
   emptyState: {
     flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     paddingTop: 80,
   },
   emptyTitle: {
     fontSize: 18,
-    fontWeight: '600',
+    fontWeight: "600",
     color: Colors.dark,
     marginTop: 16,
   },
