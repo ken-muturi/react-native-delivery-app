@@ -95,7 +95,19 @@ async function fetchRoute(
     const profile = mode === "car" ? "driving" : "bike";
     const url = `https://router.project-osrm.org/route/v1/${profile}/${origin.longitude},${origin.latitude};${destination.longitude},${destination.latitude}?overview=full&geometries=polyline6`;
 
-    const response = await fetch(url);
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 8000);
+
+    const response = await fetch(url, { signal: controller.signal });
+    clearTimeout(timeoutId);
+
+    // Check if response is JSON
+    const contentType = response.headers.get("content-type");
+    if (!contentType || !contentType.includes("application/json")) {
+      console.warn("OSRM API returned non-JSON response");
+      return null;
+    }
+
     const data = await response.json();
 
     if (data.code === "Ok" && data.routes && data.routes.length > 0) {
@@ -103,7 +115,11 @@ async function fetchRoute(
     }
     return null;
   } catch (error) {
-    console.error("Failed to fetch route:", error);
+    if (error instanceof Error && error.name === "AbortError") {
+      console.warn("Route fetch timed out");
+    } else {
+      console.warn("Failed to fetch route:", error);
+    }
     return null;
   }
 }
@@ -119,16 +135,20 @@ const DriverMapScreen = () => {
     latitude: number;
     longitude: number;
   }>(NAIROBI_DEFAULT);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [transportMode, setTransportMode] = useState<TransportMode>("bike");
   const [routePolylines, setRoutePolylines] = useState<AppleMaps.Polyline[]>(
     []
   );
   const [routesLoading, setRoutesLoading] = useState(false);
+  const routeFetchedRef = useRef(false);
 
-  // Get active orders (collected or in-transit)
+  // Get active orders (driver-assigned, collected or in-transit)
   const activeOrders = orders.filter(
-    (order) => order.status === "collected" || order.status === "in-transit"
+    (order) =>
+      order.status === "driver-assigned" ||
+      order.status === "collected" ||
+      order.status === "in-transit"
   );
 
   // Create markers for active deliveries
@@ -136,11 +156,21 @@ const DriverMapScreen = () => {
     .map((order) => {
       const coords = deliveryCoordinates[order.deliveryAddress];
       if (!coords) return null;
+      const getMarkerConfig = (status: string) => {
+        switch (status) {
+          case "in-transit":
+            return { icon: "car.fill", color: "#5856D6" };
+          case "driver-assigned":
+            return { icon: "person.fill", color: "#FF6B35" };
+          default:
+            return { icon: "shippingbox.fill", color: "#007AFF" };
+        }
+      };
+      const config = getMarkerConfig(order.status);
       return {
         id: order.id,
-        systemImage:
-          order.status === "in-transit" ? "car.fill" : "shippingbox.fill",
-        tintColor: order.status === "in-transit" ? "#5856D6" : "#007AFF",
+        systemImage: config.icon,
+        tintColor: config.color,
         coordinates: coords,
         title: order.customerName,
       };
@@ -181,18 +211,30 @@ const DriverMapScreen = () => {
       );
 
       if (routeCoords && routeCoords.length > 0) {
+        const routeColor =
+          order.status === "in-transit"
+            ? "#5856D6"
+            : order.status === "driver-assigned"
+            ? "#FF6B35"
+            : "#007AFF";
         polylines.push({
           id: `route-${order.id}`,
           coordinates: routeCoords,
-          color: order.status === "in-transit" ? "#5856D6" : "#007AFF",
+          color: routeColor,
           lineWidth: 5,
         });
       } else {
         // Fallback to straight line if routing fails
+        const routeColor =
+          order.status === "in-transit"
+            ? "#5856D6"
+            : order.status === "driver-assigned"
+            ? "#FF6B35"
+            : "#007AFF";
         polylines.push({
           id: `route-${order.id}`,
           coordinates: [driverLocation, destCoords],
-          color: order.status === "in-transit" ? "#5856D6" : "#007AFF",
+          color: routeColor,
           lineWidth: 4,
           lineDashPattern: [10, 5],
         });
@@ -205,8 +247,19 @@ const DriverMapScreen = () => {
 
   // Fetch routes when driver location, orders, or transport mode changes
   useEffect(() => {
-    fetchAllRoutes();
-  }, [fetchAllRoutes]);
+    // Only fetch routes once on mount or when orders/transport mode changes
+    // Avoid refetching on every driver location update
+    if (routeFetchedRef.current && activeOrders.length === routePolylines.length) {
+      return;
+    }
+    
+    const timeoutId = setTimeout(() => {
+      fetchAllRoutes();
+      routeFetchedRef.current = true;
+    }, 500); // Debounce 500ms
+
+    return () => clearTimeout(timeoutId);
+  }, [activeOrders.length, transportMode]);
 
   const locateMe = async () => {
     try {
@@ -224,7 +277,6 @@ const DriverMapScreen = () => {
       });
     } catch (error) {
       console.error("Failed to get location:", error);
-      // Default to Nairobi CBD if location fails
       setDriverLocation(NAIROBI_DEFAULT);
       mapRef.current?.setCameraPosition({
         coordinates: NAIROBI_DEFAULT,
@@ -238,11 +290,10 @@ const DriverMapScreen = () => {
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== "granted") {
         console.log("Location permission not granted");
-        setLoading(false);
         return;
       }
-      await locateMe();
-      setLoading(false);
+      // Only try to get real location if user taps locate button
+      // Start with Nairobi default for demo purposes
     }
     initLocation();
   }, []);
@@ -344,7 +395,7 @@ const DriverMapScreen = () => {
           markers={allMarkers}
           polylines={routePolylines}
           cameraPosition={{
-            coordinates: driverLocation,
+            coordinates: NAIROBI_DEFAULT,
             zoom: 14,
           }}
           properties={{
@@ -368,45 +419,54 @@ const DriverMapScreen = () => {
             <Text style={styles.noDeliveries}>No active deliveries</Text>
           ) : (
             <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-              {activeOrders.map((order) => (
-                <View
-                  key={order.id}
-                  style={[
-                    styles.deliveryCard,
-                    {
-                      borderLeftColor:
-                        order.status === "in-transit" ? "#5856D6" : "#007AFF",
-                    },
-                  ]}
-                >
-                  <Text style={styles.cardCustomer}>{order.customerName}</Text>
-                  <Text style={styles.cardAddress} numberOfLines={1}>
-                    {order.deliveryAddress}
-                  </Text>
-                  <View style={styles.cardFooter}>
-                    <View
-                      style={[
-                        styles.statusBadge,
-                        {
-                          backgroundColor:
-                            order.status === "in-transit"
-                              ? "#5856D6"
-                              : "#007AFF",
-                        },
-                      ]}
-                    >
-                      <Text style={styles.statusText}>
-                        {order.status === "in-transit"
-                          ? "In Transit"
-                          : "Collected"}
+              {activeOrders.map((order) => {
+                const getStatusConfig = (status: string) => {
+                  switch (status) {
+                    case "in-transit":
+                      return { color: "#5856D6", label: "In Transit" };
+                    case "driver-assigned":
+                      return { color: "#FF6B35", label: "Assigned" };
+                    default:
+                      return { color: "#007AFF", label: "Collected" };
+                  }
+                };
+                const statusConfig = getStatusConfig(order.status);
+                return (
+                  <View
+                    key={order.id}
+                    style={[
+                      styles.deliveryCard,
+                      {
+                        borderLeftColor: statusConfig.color,
+                      },
+                    ]}
+                  >
+                    <Text style={styles.cardCustomer}>
+                      {order.customerName}
+                    </Text>
+                    <Text style={styles.cardAddress} numberOfLines={1}>
+                      {order.deliveryAddress}
+                    </Text>
+                    <View style={styles.cardFooter}>
+                      <View
+                        style={[
+                          styles.statusBadge,
+                          {
+                            backgroundColor: statusConfig.color,
+                          },
+                        ]}
+                      >
+                        <Text style={styles.statusText}>
+                          {statusConfig.label}
+                        </Text>
+                      </View>
+                      <Text style={styles.cardTotal}>
+                        KES {order.total.toLocaleString()}
                       </Text>
                     </View>
-                    <Text style={styles.cardTotal}>
-                      KES {order.total.toLocaleString()}
-                    </Text>
                   </View>
-                </View>
-              ))}
+                );
+              })}
             </ScrollView>
           )}
         </View>

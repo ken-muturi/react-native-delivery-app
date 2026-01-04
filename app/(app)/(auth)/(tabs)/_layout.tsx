@@ -1,11 +1,10 @@
-import FontAwesome5 from "@expo/vector-icons/FontAwesome5";
 import Ionicons from "@expo/vector-icons/Ionicons";
-import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import { Tabs } from "expo-router";
 
 const Layout = () => {
   return (
     <Tabs
+      initialRouteName="orders"
       screenOptions={{
         tabBarLabelStyle: {
           fontSize: 9,
@@ -14,12 +13,44 @@ const Layout = () => {
       }}
     >
       <Tabs.Screen
-        name="restaurants"
+        name="orders"
         options={{
-          title: "Restaurants",
+          title: "Orders",
           headerShown: false,
-          tabBarIcon: ({ color, size }) => (
-            <MaterialIcons name="restaurant" color={color} size={size} />
+          tabBarIcon: ({ color, size, focused }) => (
+            <Ionicons
+              name={focused ? "list" : "list-outline"}
+              color={color}
+              size={size}
+            />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="map"
+        options={{
+          title: "Map",
+          headerShown: false,
+          tabBarIcon: ({ color, size, focused }) => (
+            <Ionicons
+              name={focused ? "navigate" : "navigate-outline"}
+              color={color}
+              size={size}
+            />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="profile"
+        options={{
+          title: "Profile",
+          headerShown: false,
+          tabBarIcon: ({ color, size, focused }) => (
+            <Ionicons
+              name={focused ? "person" : "person-outline"}
+              color={color}
+              size={size}
+            />
           ),
         }}
       />
@@ -37,54 +68,9 @@ const Layout = () => {
         }}
       />
       <Tabs.Screen
-        name="stores"
-        options={{
-          title: "Stores",
-          headerShown: false,
-          tabBarIcon: ({ color, size, focused }) => (
-            <Ionicons
-              name={focused ? "storefront" : "storefront-outline"}
-              color={color}
-              size={size}
-            />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="driver"
-        options={{
-          title: "Driver",
-          headerShown: false,
-          tabBarIcon: ({ color, size, focused }) => (
-            <Ionicons
-              name={focused ? "bicycle" : "bicycle-outline"}
-              color={color}
-              size={size}
-            />
-          ),
-        }}
-      />
-      <Tabs.Screen
         name="search"
         options={{
-          title: "Search",
-          tabBarIcon: ({ color, size, focused }) => (
-            <FontAwesome5
-              name={focused ? "search-location" : "search"}
-              color={color}
-              size={size}
-            />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="profile"
-        options={{
-          title: "Profile",
-          headerShown: false,
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name={"person"} color={color} size={size} />
-          ),
+          href: null, // Hide from tab bar
         }}
       />
     </Tabs>

@@ -1,8 +1,16 @@
 import { Colors } from '@/constants/theme';
-import useOrderStore, { Order, OrderStatus } from '@/hooks/use-orderstore';
-import { Ionicons } from '@expo/vector-icons';
+import useOrderStore, {
+  Order,
+  OrderStatus,
+  initialOrders,
+} from "@/hooks/use-orderstore";
+import {
+  requestNotificationPermissions,
+  sendDriverAssignedNotification,
+} from "@/services/notificationService";
+import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from "react";
 import {
   Alert,
   FlatList,
@@ -11,39 +19,70 @@ import {
   Text,
   TouchableOpacity,
   View,
-} from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+} from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 type TabType = OrderStatus;
 
 const statusColors: Record<OrderStatus, string> = {
-  new: '#FF9500',
-  collected: '#007AFF',
-  'in-transit': '#5856D6',
-  delivered: '#34C759',
+  new: "#FF9500",
+  "driver-assigned": "#FF6B35",
+  "in-transit": "#5856D6",
+  collected: "#007AFF",
+  delivered: "#34C759",
 };
 
 const statusLabels: Record<OrderStatus, string> = {
-  new: 'New Order',
-  collected: 'Collected',
-  'in-transit': 'In Transit',
-  delivered: 'Delivered',
+  new: "New Order",
+  "driver-assigned": "Driver Assigned",
+  "in-transit": "In Transit",
+  collected: "Collected",
+  delivered: "Delivered",
 };
 
 const DriverOrdersScreen = () => {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { orders, updateOrderStatus, addOrder } = useOrderStore();
-  const [activeTab, setActiveTab] = useState<TabType>('new');
+  const { orders, updateOrderStatus, addOrder, resetToInitialOrders } =
+    useOrderStore();
+  const [activeTab, setActiveTab] = useState<TabType>("new");
   const [refreshing, setRefreshing] = useState(false);
+
+  // Request notification permissions on mount
+  useEffect(() => {
+    requestNotificationPermissions();
+  }, []);
 
   const filteredOrders = orders.filter((order) => order.status === activeTab);
 
   // Add a test order (for demo purposes)
   const addTestOrder = () => {
-    const randomOrder = sampleOrders[Math.floor(Math.random() * sampleOrders.length)];
+    const randomOrder =
+      initialOrders[Math.floor(Math.random() * initialOrders.length)];
     addOrder(randomOrder);
-    Alert.alert('New Order!', `Order from ${randomOrder.restaurantName} received!`);
+    Alert.alert(
+      "New Order!",
+      `Order from ${randomOrder.restaurantName} received!`
+    );
+  };
+
+  // Reset orders to initial demo data
+  const resetOrders = () => {
+    Alert.alert(
+      "Reset Orders",
+      "This will reset all orders to the initial demo data. Continue?",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Reset",
+          style: "destructive",
+          onPress: () => {
+            resetToInitialOrders();
+            Alert.alert("Done", "Orders have been reset to initial data.");
+          },
+        },
+      ]
+    );
   };
 
   const onRefresh = useCallback(() => {
@@ -54,12 +93,14 @@ const DriverOrdersScreen = () => {
 
   const getNextStatus = (currentStatus: OrderStatus): OrderStatus | null => {
     switch (currentStatus) {
-      case 'new':
-        return 'collected';
-      case 'collected':
-        return 'in-transit';
-      case 'in-transit':
-        return 'delivered';
+      case "new":
+        return "driver-assigned";
+      case "driver-assigned":
+        return "in-transit";
+      case "in-transit":
+        return "collected";
+      case "collected":
+        return "delivered";
       default:
         return null;
     }
@@ -67,14 +108,16 @@ const DriverOrdersScreen = () => {
 
   const getActionLabel = (status: OrderStatus): string => {
     switch (status) {
-      case 'new':
-        return 'Accept & Collect';
-      case 'collected':
-        return 'Start Delivery';
-      case 'in-transit':
-        return 'Mark Delivered';
+      case "new":
+        return "Assign Driver";
+      case "driver-assigned":
+        return "Start Delivery";
+      case "in-transit":
+        return "Mark Collected";
+      case "collected":
+        return "Mark Delivered";
       default:
-        return '';
+        return "";
     }
   };
 
@@ -83,13 +126,22 @@ const DriverOrdersScreen = () => {
     if (!nextStatus) return;
 
     Alert.alert(
-      'Update Order Status',
+      "Update Order Status",
       `Change order status to "${statusLabels[nextStatus]}"?`,
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: "Cancel", style: "cancel" },
         {
-          text: 'Confirm',
-          onPress: () => updateOrderStatus(order.id, nextStatus),
+          text: "Confirm",
+          onPress: async () => {
+            updateOrderStatus(order.id, nextStatus);
+            // Send push notification when driver is assigned
+            if (nextStatus === "driver-assigned") {
+              await sendDriverAssignedNotification(
+                order.id,
+                order.restaurantName
+              );
+            }
+          },
         },
       ]
     );
@@ -100,14 +152,19 @@ const DriverOrdersScreen = () => {
       <View style={styles.orderHeader}>
         <View style={styles.orderIdContainer}>
           <Text style={styles.orderId}>{order.id}</Text>
-          <View style={[styles.statusBadge, { backgroundColor: statusColors[order.status] }]}>
+          <View
+            style={[
+              styles.statusBadge,
+              { backgroundColor: statusColors[order.status] },
+            ]}
+          >
             <Text style={styles.statusText}>{statusLabels[order.status]}</Text>
           </View>
         </View>
         <Text style={styles.orderTime}>
-          {new Date(order.createdAt).toLocaleTimeString('en-KE', {
-            hour: '2-digit',
-            minute: '2-digit',
+          {new Date(order.createdAt).toLocaleTimeString("en-KE", {
+            hour: "2-digit",
+            minute: "2-digit",
           })}
         </Text>
       </View>
@@ -129,7 +186,8 @@ const DriverOrdersScreen = () => {
         <Text style={styles.customerName}>{order.customerName}</Text>
         <TouchableOpacity
           style={styles.callButton}
-          onPress={() => Alert.alert('Call', `Calling ${order.customerPhone}`)}>
+          onPress={() => Alert.alert("Call", `Calling ${order.customerPhone}`)}
+        >
           <Ionicons name="call-outline" size={16} color="#007AFF" />
         </TouchableOpacity>
       </View>
@@ -144,12 +202,20 @@ const DriverOrdersScreen = () => {
       </View>
 
       <View style={styles.orderFooter}>
-        <Text style={styles.totalText}>Total: KES {order.total.toLocaleString()}</Text>
-        {order.status !== 'delivered' && (
+        <Text style={styles.totalText}>
+          Total: KES {order.total.toLocaleString()}
+        </Text>
+        {order.status !== "delivered" && (
           <TouchableOpacity
-            style={[styles.actionButton, { backgroundColor: statusColors[order.status] }]}
-            onPress={() => handleStatusUpdate(order)}>
-            <Text style={styles.actionButtonText}>{getActionLabel(order.status)}</Text>
+            style={[
+              styles.actionButton,
+              { backgroundColor: statusColors[order.status] },
+            ]}
+            onPress={() => handleStatusUpdate(order)}
+          >
+            <Text style={styles.actionButtonText}>
+              {getActionLabel(order.status)}
+            </Text>
           </TouchableOpacity>
         )}
       </View>
@@ -159,21 +225,31 @@ const DriverOrdersScreen = () => {
   const renderEmptyState = () => (
     <View style={styles.emptyState}>
       <Ionicons
-        name={activeTab === 'new' ? 'notifications-outline' : activeTab === 'in-transit' ? 'bicycle-outline' : 'receipt-outline'}
+        name={
+          activeTab === "new"
+            ? "notifications-outline"
+            : activeTab === "driver-assigned"
+            ? "person-outline"
+            : activeTab === "in-transit"
+            ? "bicycle-outline"
+            : "receipt-outline"
+        }
         size={64}
         color={Colors.muted}
       />
       <Text style={styles.emptyTitle}>
-        {activeTab === 'new' && 'No New Orders'}
-        {activeTab === 'collected' && 'No Collected Orders'}
-        {activeTab === 'in-transit' && 'No Orders In Transit'}
-        {activeTab === 'delivered' && 'No Delivered Orders'}
+        {activeTab === "new" && "No New Orders"}
+        {activeTab === "driver-assigned" && "No Assigned Orders"}
+        {activeTab === "collected" && "No Collected Orders"}
+        {activeTab === "in-transit" && "No Orders In Transit"}
+        {activeTab === "delivered" && "No Delivered Orders"}
       </Text>
       <Text style={styles.emptySubtitle}>
-        {activeTab === 'new' && 'New orders will appear here'}
-        {activeTab === 'collected' && 'Collected orders will appear here'}
-        {activeTab === 'in-transit' && 'Orders in transit will appear here'}
-        {activeTab === 'delivered' && 'Completed deliveries will show here'}
+        {activeTab === "new" && "New orders will appear here"}
+        {activeTab === "driver-assigned" && "Assigned orders will appear here"}
+        {activeTab === "collected" && "Collected orders will appear here"}
+        {activeTab === "in-transit" && "Orders in transit will appear here"}
+        {activeTab === "delivered" && "Completed deliveries will show here"}
       </Text>
     </View>
   );
@@ -181,20 +257,17 @@ const DriverOrdersScreen = () => {
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>Driver Dashboard</Text>
+        <Text style={styles.headerTitle}>Orders</Text>
         <View style={styles.headerRight}>
-          <TouchableOpacity
-            style={styles.iconButton}
-            onPress={() => router.push("/driver/map")}
-          >
-            <Ionicons name="map-outline" size={22} color={Colors.primary} />
-          </TouchableOpacity>
           <TouchableOpacity style={styles.iconButton} onPress={addTestOrder}>
             <Ionicons
               name="add-circle-outline"
               size={22}
               color={Colors.primary}
             />
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.iconButton} onPress={resetOrders}>
+            <Ionicons name="refresh-outline" size={22} color={Colors.primary} />
           </TouchableOpacity>
           <View style={styles.headerBadge}>
             <Ionicons name="bicycle" size={20} color={Colors.primary} />
@@ -218,16 +291,20 @@ const DriverOrdersScreen = () => {
           </Text>
         </TouchableOpacity>
         <TouchableOpacity
-          style={[styles.tab, activeTab === "collected" && styles.activeTab]}
-          onPress={() => setActiveTab("collected")}
+          style={[
+            styles.tab,
+            activeTab === "driver-assigned" && styles.activeTab,
+          ]}
+          onPress={() => setActiveTab("driver-assigned")}
         >
           <Text
             style={[
               styles.tabText,
-              activeTab === "collected" && styles.activeTabText,
+              activeTab === "driver-assigned" && styles.activeTabText,
             ]}
           >
-            Collected ({orders.filter((o) => o.status === "collected").length})
+            Assigned (
+            {orders.filter((o) => o.status === "driver-assigned").length})
           </Text>
         </TouchableOpacity>
         <TouchableOpacity
@@ -241,6 +318,19 @@ const DriverOrdersScreen = () => {
             ]}
           >
             Transit ({orders.filter((o) => o.status === "in-transit").length})
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.tab, activeTab === "collected" && styles.activeTab]}
+          onPress={() => setActiveTab("collected")}
+        >
+          <Text
+            style={[
+              styles.tabText,
+              activeTab === "collected" && styles.activeTabText,
+            ]}
+          >
+            Collected ({orders.filter((o) => o.status === "collected").length})
           </Text>
         </TouchableOpacity>
         <TouchableOpacity

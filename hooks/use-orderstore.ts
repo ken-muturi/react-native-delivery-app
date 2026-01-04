@@ -3,6 +3,7 @@ import zustandStorage from '@/utils/zustandStorage';
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 
+export { initialOrders } from "@/data/orders";
 export type { Order, OrderStatus } from '@/data/orders';
 
 interface OrderStore {

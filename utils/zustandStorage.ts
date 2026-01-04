@@ -4,16 +4,8 @@ import { StateStorage } from 'zustand/middleware';
 const storage = createMMKV();
 
 const zustandStorage: StateStorage = {
-  setItem: (name, value) => {
-    return storage.set(name, value);
-  },
-  getItem: (name) => {
-    const value = storage.getString(name);
-    return value ?? null;
-  },
-  removeItem: (name) => {
-    return storage.remove(name);
-  },
+  setItem: (name, value) => storage.set(name, value),
+  getItem: (name) => storage.getString(name) ?? null,
+  removeItem: (name) => storage.remove(name),
 };
-
 export default zustandStorage;
