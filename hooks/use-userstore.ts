@@ -6,16 +6,24 @@ import { createJSONStorage, persist } from "zustand/middleware";
 
 const API_BASE_URL =
   process.env.EXPO_PUBLIC_API_URL || "https://your-nextjs-app.com";
+const EXTERNAL_API_KEY = process.env.EXPO_PUBLIC_EXTERNAL_API_KEY || "";
 const API_URL = `${API_BASE_URL}/api/auth`;
 
 // Debug: Log the API URL at startup
 console.log("[AuthStore] API_BASE_URL:", API_BASE_URL);
 console.log("[AuthStore] API_URL:", API_URL);
+console.log("[AuthStore] API Key present:", !!EXTERNAL_API_KEY);
+console.log(
+  "[AuthStore] API Key (first 8 chars):",
+  EXTERNAL_API_KEY?.substring(0, 8)
+);
 
 export interface User {
   id: string;
   email: string;
   name: string;
+  role?: string; // 'admin' | 'driver' | etc.
+  clientId?: string;
 }
 
 interface AuthState {
@@ -52,6 +60,14 @@ export const useAuthStore = create<AuthState>()(
         console.log("[AuthStore] Email:", email);
 
         try {
+          console.log("[AuthStore] Making request with headers:", {
+            "Content-Type": "application/json",
+            "X-API-Key": EXTERNAL_API_KEY
+              ? `${EXTERNAL_API_KEY.substring(0, 8)}...`
+              : "MISSING",
+            "bypass-tunnel-reminder": "true",
+          });
+
           const response = await axios.post(
             loginUrl,
             {
@@ -61,9 +77,10 @@ export const useAuthStore = create<AuthState>()(
             {
               headers: {
                 "Content-Type": "application/json",
-                "bypass-tunnel-reminder": "true", // Required for localtunnel (loca.lt)
+                "X-API-Key": EXTERNAL_API_KEY,
+                "bypass-tunnel-reminder": "true",
               },
-              timeout: 10000,
+              timeout: 30000, // Increased to 30 seconds
             }
           );
 
@@ -74,7 +91,14 @@ export const useAuthStore = create<AuthState>()(
           );
 
           if (response.data.success) {
-            const { token, user } = response.data;
+            // Token and user are nested inside response.data.data
+            const { token, user } = response.data.data;
+
+            console.log(
+              "[AuthStore] Extracted token:",
+              token ? "present" : "missing"
+            );
+            console.log("[AuthStore] Extracted user:", user?.email);
 
             set({
               user,
@@ -83,6 +107,10 @@ export const useAuthStore = create<AuthState>()(
               isLoading: false,
               error: null,
             });
+
+            console.log(
+              "[AuthStore] State updated, isAuthenticated should be true now"
+            );
           } else {
             throw new Error("Authentication failed");
           }
@@ -143,9 +171,20 @@ export const useAuthStore = create<AuthState>()(
       },
 
       checkAuth: async () => {
+        console.log("[AuthStore] checkAuth called");
         const { token, user } = get();
 
+        console.log(
+          "[AuthStore] checkAuth - has token:",
+          !!token,
+          "has user:",
+          !!user
+        );
+
         if (!token || !user) {
+          console.log(
+            "[AuthStore] checkAuth - no token/user, setting isAuthenticated: false"
+          );
           set({ isAuthenticated: false, isLoading: false });
           return;
         }
@@ -153,7 +192,9 @@ export const useAuthStore = create<AuthState>()(
         set({ isLoading: true });
 
         try {
+          console.log("[AuthStore] checkAuth - verifying token...");
           const isValid = await get().verifyToken();
+          console.log("[AuthStore] checkAuth - token valid:", isValid);
 
           if (isValid) {
             set({
@@ -161,6 +202,9 @@ export const useAuthStore = create<AuthState>()(
               isLoading: false,
             });
           } else {
+            console.log(
+              "[AuthStore] checkAuth - token invalid, resetting auth"
+            );
             set({
               user: null,
               token: null,
@@ -169,7 +213,7 @@ export const useAuthStore = create<AuthState>()(
             });
           }
         } catch (error) {
-          console.error("Auth check failed:", error);
+          console.error("[AuthStore] checkAuth failed:", error);
           set({
             user: null,
             token: null,
@@ -209,6 +253,20 @@ export const useAuthStore = create<AuthState>()(
         token: state.token,
         isAuthenticated: state.isAuthenticated,
       }),
+      onRehydrateStorage: () => {
+        console.log("[AuthStore] Hydration starting...");
+        return (state, error) => {
+          if (error) {
+            console.log("[AuthStore] Hydration error:", error);
+          } else {
+            console.log("[AuthStore] Hydration finished, state:", {
+              isAuthenticated: state?.isAuthenticated,
+              hasToken: !!state?.token,
+              hasUser: !!state?.user,
+            });
+          }
+        };
+      },
     }
   )
 );

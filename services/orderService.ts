@@ -1,53 +1,128 @@
-// import type { CartItem } from '@/hooks/use-cartstore';
+import { api } from "./apiClientService";
+
+export interface OrderItem {
+  name: string;
+  quantity: number;
+  price: number;
+}
 
 export interface OrderData {
-  // items: CartItem[];
-  restaurantId: string;
-  restaurantName: string;
-  deliveryMode: 'delivery' | 'pickup';
+  id?: string;
+  clientId: string;
+  clientName: string;
+  deliveryMode: "delivery" | "pickup";
   deliveryAddress?: string;
   customerName: string;
   customerPhone: string;
-  items: {
-    name: string;
-    quantity: number;
-    price: number;
-  }[];
+  items: OrderItem[];
   leaveAtDoor: boolean;
   sendAsGift: boolean;
-  deliveryTime: 'standard' | 'schedule';
+  deliveryTime: "standard" | "schedule";
   selectedTimeSlot?: string;
   tipAmount: number;
-  paymentMethod: 'applepay' | 'card';
+  paymentMethod: "applepay" | "card";
   subtotal: number;
   serviceFee: number;
   deliveryFee: number;
   total: number;
+  status?: string;
+  driverId?: string;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export const orderService = {
   /**
-   * Create a new order
+   * Get orders for the current user (API handles role-based filtering via auth token)
    */
-  createOrder: async (orderData: OrderData): Promise<{ orderId: string; success: boolean }> => {
-    // TODO: Replace with actual API call when backend is ready
-    // return fetch('/api/orders', {
-    //   method: 'POST',
-    //   headers: { 'Content-Type': 'application/json' },
-    //   body: JSON.stringify(orderData)
-    // }).then(res => res.json());
-
-    console.log('Creating order:', orderData);
-
-    // Simulate API delay
-    await new Promise((resolve) => setTimeout(resolve, 1000));
-
-    return {
-      orderId: `ORDER_${Date.now()}`,
-      success: true,
-    };
+  getAll: async (): Promise<OrderData[]> => {
+    return api.get<OrderData[]>("/api/orders");
   },
 
+  /**
+   * Get a single order by ID
+   */
+  getById: async (id: string): Promise<OrderData> => {
+    return api.get<OrderData>(`/api/orders/${id}`);
+  },
+
+  /**
+   * Create a new order
+   */
+  create: async (
+    orderData: Omit<OrderData, "id" | "status" | "createdAt" | "updatedAt">
+  ): Promise<OrderData> => {
+    return api.post<OrderData>("/api/orders", orderData);
+  },
+
+  /**
+   * Update an existing order
+   */
+  update: async (
+    id: string,
+    orderData: Partial<OrderData>
+  ): Promise<OrderData> => {
+    return api.put<OrderData>(`/api/orders/${id}`, orderData);
+  },
+
+  /**
+   * Update order status
+   */
+  updateStatus: async (id: string, status: string): Promise<OrderData> => {
+    return api.patch<OrderData>(`/api/orders/${id}`, { status });
+  },
+
+  /**
+   * Cancel an order
+   */
+  cancel: async (id: string): Promise<OrderData> => {
+    return api.patch<OrderData>(`/api/orders/${id}`, { status: "cancelled" });
+  },
+
+  /**
+   * Get orders by status
+   */
+  getByStatus: async (status: string): Promise<OrderData[]> => {
+    return api.get<OrderData[]>("/api/orders", { status });
+  },
+
+  /**
+   * Get active orders (not delivered or cancelled)
+   */
+  getActive: async (): Promise<OrderData[]> => {
+    return api.get<OrderData[]>("/api/orders/active");
+  },
+
+  /**
+   * Get order history (delivered orders)
+   */
+  getHistory: async (): Promise<OrderData[]> => {
+    return api.get<OrderData[]>("/api/orders/history");
+  },
+
+  /**
+   * Assign driver to order
+   */
+  assignDriver: async (
+    orderId: string,
+    driverId: string
+  ): Promise<OrderData> => {
+    return api.patch<OrderData>(`/api/orders/${orderId}/assign`, { driverId });
+  },
+
+  /**
+   * Mark order as collected
+   */
+  markCollected: async (orderId: string): Promise<OrderData> => {
+    return api.patch<OrderData>(`/api/orders/${orderId}/collected`, {});
+  },
+
+  /**
+   * Mark order as delivered
+   */
+  markDelivered: async (orderId: string): Promise<OrderData> => {
+    return api.patch<OrderData>(`/api/orders/${orderId}/delivered`, {});
+  },
   /**
    * Calculate fees based on cart total and distance (in KES)
    */

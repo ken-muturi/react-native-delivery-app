@@ -21,7 +21,8 @@ export default function Login() {
   const handleLogin = async () => {
     try {
       await login(email, password);
-      router.replace('/(auth)'); // Navigate to home
+      console.log('[Login] Success! isAuthenticated should now be true');
+      // Stack.Protected in _layout.tsx should auto-redirect when isAuthenticated changes
     } catch (err) {
         console.error('Login failed:', err);
       alert('Login failed');

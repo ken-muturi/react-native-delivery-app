@@ -41,6 +41,20 @@ const Layout = () => {
         }}
       />
       <Tabs.Screen
+        name="scanner"
+        options={{
+          title: "Scan Delivery QR",
+          headerShown: false,
+          tabBarIcon: ({ color, size, focused }) => (
+            <Ionicons
+              name={focused ? "qr-code" : "qr-code-outline"}
+              color={color}
+              size={size}
+            />
+          ),
+        }}
+      />
+      <Tabs.Screen
         name="profile"
         options={{
           title: "Profile",

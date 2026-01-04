@@ -1,4 +1,4 @@
-import Login from "@/components/Auth/Login";
+import Login from "@/components/Screens/Login";
 import { Colors, Fonts } from "@/constants/theme";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useRouter } from "expo-router";

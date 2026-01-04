@@ -1,17 +1,20 @@
 import { Colors } from '@/constants/theme';
-import useOrderStore, {
-  Order,
-  OrderStatus,
-  initialOrders,
-} from "@/hooks/use-orderstore";
+import { OrderStatus } from "@/data/orders";
+import { useAuthStore } from "@/hooks/use-userstore";
+import {
+  useAssignDriver,
+  useOrders,
+  useUpdateOrderStatus,
+} from "@/hooks/useOrders";
 import {
   requestNotificationPermissions,
   sendDriverAssignedNotification,
 } from "@/services/notificationService";
+import { OrderData } from "@/services/orderService";
 import { Ionicons } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
+  ActivityIndicator,
   Alert,
   FlatList,
   RefreshControl,
@@ -27,24 +30,68 @@ type TabType = OrderStatus;
 const statusColors: Record<OrderStatus, string> = {
   new: "#FF9500",
   "driver-assigned": "#FF6B35",
+  pickup: "#007AFF",
   "in-transit": "#5856D6",
-  collected: "#007AFF",
   delivered: "#34C759",
 };
 
 const statusLabels: Record<OrderStatus, string> = {
   new: "New Order",
   "driver-assigned": "Driver Assigned",
+  pickup: "Pickup",
   "in-transit": "In Transit",
-  collected: "Collected",
   delivered: "Delivered",
 };
 
-const DriverOrdersScreen = () => {
+const OrdersScreen = () => {
   const insets = useSafeAreaInsets();
-  const router = useRouter();
-  const { orders, updateOrderStatus, addOrder, resetToInitialOrders } =
-    useOrderStore();
+
+  // Get current user (driver)
+  const user = useAuthStore((state) => state.user);
+  const isAdmin = user?.role === "admin";
+
+  // API-based orders (React Query) - API handles role-based filtering via auth token
+  const { data: apiOrders, isLoading, isError, error, refetch } = useOrders();
+  const updateStatusMutation = useUpdateOrderStatus();
+  const assignDriverMutation = useAssignDriver();
+
+  // Debug logging
+  useEffect(() => {
+    console.log("[OrdersScreen] apiOrders:", apiOrders?.length, "total");
+    console.log("[OrdersScreen] isLoading:", isLoading);
+    console.log("[OrdersScreen] isError:", isError);
+    if (isError) console.log("[OrdersScreen] error:", error);
+    // Log unique statuses from API
+    if (apiOrders && apiOrders.length > 0) {
+      const statuses = [...new Set(apiOrders.map((o) => o.status))];
+      console.log("[OrdersScreen] Unique statuses from API:", statuses);
+    }
+  }, [apiOrders, isLoading, isError, error]);
+
+  // Map API status to frontend status (handle legacy "collected" status)
+  const mapStatus = (status: string): OrderStatus => {
+    if (status === "collected") return "pickup";
+    return (status as OrderStatus) || "new";
+  };
+
+  // Map API orders to include required fields
+  const orders: OrderData[] = useMemo(() => {
+    console.log(
+      "[OrdersScreen] Processing apiOrders:",
+      apiOrders?.length || 0,
+      "items"
+    );
+    if (apiOrders && apiOrders.length > 0) {
+      return apiOrders.map((order) => ({
+        ...order,
+        id: order.id || "",
+        status: mapStatus(order.status || "new"),
+        createdAt: order.createdAt || new Date().toISOString(),
+      }));
+    }
+    return [];
+  }, [apiOrders]);
+
   const [activeTab, setActiveTab] = useState<TabType>("new");
   const [refreshing, setRefreshing] = useState(false);
 
@@ -53,53 +100,31 @@ const DriverOrdersScreen = () => {
     requestNotificationPermissions();
   }, []);
 
+  // Filter orders by active tab (role filtering is done server-side)
   const filteredOrders = orders.filter((order) => order.status === activeTab);
 
-  // Add a test order (for demo purposes)
-  const addTestOrder = () => {
-    const randomOrder =
-      initialOrders[Math.floor(Math.random() * initialOrders.length)];
-    addOrder(randomOrder);
-    Alert.alert(
-      "New Order!",
-      `Order from ${randomOrder.restaurantName} received!`
-    );
-  };
-
-  // Reset orders to initial demo data
-  const resetOrders = () => {
-    Alert.alert(
-      "Reset Orders",
-      "This will reset all orders to the initial demo data. Continue?",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Reset",
-          style: "destructive",
-          onPress: () => {
-            resetToInitialOrders();
-            Alert.alert("Done", "Orders have been reset to initial data.");
-          },
-        },
-      ]
-    );
-  };
-
-  const onRefresh = useCallback(() => {
+  const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    // Simulate refresh - in production, this would fetch from API
-    setTimeout(() => setRefreshing(false), 1000);
-  }, []);
+    try {
+      await refetch();
+    } catch (error) {
+      console.warn("Failed to refresh orders:", error);
+    } finally {
+      setRefreshing(false);
+    }
+  }, [refetch]);
 
+  // For drivers, skip "new" status - they can only see assigned orders
   const getNextStatus = (currentStatus: OrderStatus): OrderStatus | null => {
     switch (currentStatus) {
       case "new":
-        return "driver-assigned";
+        // Only admins can assign drivers
+        return isAdmin ? "driver-assigned" : null;
       case "driver-assigned":
+        return "pickup";
+      case "pickup":
         return "in-transit";
       case "in-transit":
-        return "collected";
-      case "collected":
         return "delivered";
       default:
         return null;
@@ -109,20 +134,20 @@ const DriverOrdersScreen = () => {
   const getActionLabel = (status: OrderStatus): string => {
     switch (status) {
       case "new":
-        return "Assign Driver";
+        return isAdmin ? "Assign Driver" : "";
       case "driver-assigned":
+        return "Mark Pickup";
+      case "pickup":
         return "Start Delivery";
       case "in-transit":
-        return "Mark Collected";
-      case "collected":
         return "Mark Delivered";
       default:
         return "";
     }
   };
 
-  const handleStatusUpdate = (order: Order) => {
-    const nextStatus = getNextStatus(order.status);
+  const handleStatusUpdate = (order: OrderData) => {
+    const nextStatus = getNextStatus(order.status as OrderStatus);
     if (!nextStatus) return;
 
     Alert.alert(
@@ -133,12 +158,47 @@ const DriverOrdersScreen = () => {
         {
           text: "Confirm",
           onPress: async () => {
-            updateOrderStatus(order.id, nextStatus);
-            // Send push notification when driver is assigned
-            if (nextStatus === "driver-assigned") {
-              await sendDriverAssignedNotification(
-                order.id,
-                order.restaurantName
+            // For new orders, assign the current driver
+            if (order.status === "new" && nextStatus === "driver-assigned") {
+              if (!user?.id) {
+                Alert.alert("Error", "User not found. Please log in again.");
+                return;
+              }
+
+              assignDriverMutation.mutate(
+                { orderId: order.id || "", driverId: user.id },
+                {
+                  onSuccess: async () => {
+                    await sendDriverAssignedNotification(
+                      order.id || "",
+                      order.clientName
+                    );
+                  },
+                  onError: (error) => {
+                    Alert.alert(
+                      "Error",
+                      "Failed to assign driver. Please try again."
+                    );
+                    console.warn("Failed to assign driver:", error);
+                  },
+                }
+              );
+            } else {
+              // For other status updates, just update the status
+              updateStatusMutation.mutate(
+                { orderId: order.id || "", status: nextStatus },
+                {
+                  onSuccess: async () => {
+                    // Additional handling if needed
+                  },
+                  onError: (error) => {
+                    Alert.alert(
+                      "Error",
+                      "Failed to update order status. Please try again."
+                    );
+                    console.warn("Failed to update order status:", error);
+                  },
+                }
               );
             }
           },
@@ -147,7 +207,7 @@ const DriverOrdersScreen = () => {
     );
   };
 
-  const renderOrderCard = ({ item: order }: { item: Order }) => (
+  const renderOrderCard = ({ item: order }: { item: OrderData }) => (
     <View style={styles.orderCard}>
       <View style={styles.orderHeader}>
         <View style={styles.orderIdContainer}>
@@ -155,23 +215,25 @@ const DriverOrdersScreen = () => {
           <View
             style={[
               styles.statusBadge,
-              { backgroundColor: statusColors[order.status] },
+              { backgroundColor: statusColors[order.status as OrderStatus] },
             ]}
           >
-            <Text style={styles.statusText}>{statusLabels[order.status]}</Text>
+            <Text style={styles.statusText}>
+              {statusLabels[order.status as OrderStatus]}
+            </Text>
           </View>
         </View>
         <Text style={styles.orderTime}>
-          {new Date(order.createdAt).toLocaleTimeString("en-KE", {
+          {new Date(order.createdAt || new Date()).toLocaleTimeString("en-KE", {
             hour: "2-digit",
             minute: "2-digit",
           })}
         </Text>
       </View>
 
-      <View style={styles.restaurantRow}>
+      <View style={styles.clientRow}>
         <Ionicons name="restaurant-outline" size={16} color={Colors.muted} />
-        <Text style={styles.restaurantName}>{order.restaurantName}</Text>
+        <Text style={styles.clientName}>{order.clientName}</Text>
       </View>
 
       <View style={styles.addressRow}>
@@ -203,21 +265,26 @@ const DriverOrdersScreen = () => {
 
       <View style={styles.orderFooter}>
         <Text style={styles.totalText}>
-          Total: KES {order.total.toLocaleString()}
+          Total: KES{" "}
+          {typeof order.total === "number" && !isNaN(order.total)
+            ? order.total.toLocaleString("en-KE", { minimumFractionDigits: 2 })
+            : "0.00"}
         </Text>
-        {order.status !== "delivered" && (
-          <TouchableOpacity
-            style={[
-              styles.actionButton,
-              { backgroundColor: statusColors[order.status] },
-            ]}
-            onPress={() => handleStatusUpdate(order)}
-          >
-            <Text style={styles.actionButtonText}>
-              {getActionLabel(order.status)}
-            </Text>
-          </TouchableOpacity>
-        )}
+        {/* Show action button only if there's a valid next action */}
+        {order.status !== "delivered" &&
+          getActionLabel(order.status as OrderStatus) !== "" && (
+            <TouchableOpacity
+              style={[
+                styles.actionButton,
+                { backgroundColor: statusColors[order.status as OrderStatus] },
+              ]}
+              onPress={() => handleStatusUpdate(order)}
+            >
+              <Text style={styles.actionButtonText}>
+                {getActionLabel(order.status as OrderStatus)}
+              </Text>
+            </TouchableOpacity>
+          )}
       </View>
     </View>
   );
@@ -230,6 +297,8 @@ const DriverOrdersScreen = () => {
             ? "notifications-outline"
             : activeTab === "driver-assigned"
             ? "person-outline"
+            : activeTab === "pickup"
+            ? "bag-handle-outline"
             : activeTab === "in-transit"
             ? "bicycle-outline"
             : "receipt-outline"
@@ -240,33 +309,41 @@ const DriverOrdersScreen = () => {
       <Text style={styles.emptyTitle}>
         {activeTab === "new" && "No New Orders"}
         {activeTab === "driver-assigned" && "No Assigned Orders"}
-        {activeTab === "collected" && "No Collected Orders"}
+        {activeTab === "pickup" && "No Pickup Orders"}
         {activeTab === "in-transit" && "No Orders In Transit"}
         {activeTab === "delivered" && "No Delivered Orders"}
       </Text>
       <Text style={styles.emptySubtitle}>
         {activeTab === "new" && "New orders will appear here"}
         {activeTab === "driver-assigned" && "Assigned orders will appear here"}
-        {activeTab === "collected" && "Collected orders will appear here"}
+        {activeTab === "pickup" && "Pickup orders will appear here"}
         {activeTab === "in-transit" && "Orders in transit will appear here"}
         {activeTab === "delivered" && "Completed deliveries will show here"}
       </Text>
     </View>
   );
 
+  // Show loading state on initial load
+  if (isLoading && orders.length === 0) {
+    return (
+      <View style={[styles.container, { paddingTop: insets.top }]}>
+        <View style={styles.header}>
+          <Text style={styles.headerTitle}>Orders</Text>
+        </View>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={Colors.primary} />
+          <Text style={styles.loadingText}>Loading orders...</Text>
+        </View>
+      </View>
+    );
+  }
+
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Orders</Text>
         <View style={styles.headerRight}>
-          <TouchableOpacity style={styles.iconButton} onPress={addTestOrder}>
-            <Ionicons
-              name="add-circle-outline"
-              size={22}
-              color={Colors.primary}
-            />
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.iconButton} onPress={resetOrders}>
+          <TouchableOpacity style={styles.iconButton} onPress={onRefresh}>
             <Ionicons name="refresh-outline" size={22} color={Colors.primary} />
           </TouchableOpacity>
           <View style={styles.headerBadge}>
@@ -281,14 +358,24 @@ const DriverOrdersScreen = () => {
           style={[styles.tab, activeTab === "new" && styles.activeTab]}
           onPress={() => setActiveTab("new")}
         >
-          <Text
-            style={[
-              styles.tabText,
-              activeTab === "new" && styles.activeTabText,
-            ]}
-          >
-            New ({orders.filter((o) => o.status === "new").length})
-          </Text>
+          <View style={styles.tabContent}>
+            <Text
+              style={[
+                styles.tabText,
+                activeTab === "new" && styles.activeTabText,
+              ]}
+            >
+              New
+            </Text>
+            <Text
+              style={[
+                styles.tabCount,
+                activeTab === "new" && styles.activeTabCount,
+              ]}
+            >
+              {orders.filter((o) => o.status === "new").length}
+            </Text>
+          </View>
         </TouchableOpacity>
         <TouchableOpacity
           style={[
@@ -297,61 +384,100 @@ const DriverOrdersScreen = () => {
           ]}
           onPress={() => setActiveTab("driver-assigned")}
         >
-          <Text
-            style={[
-              styles.tabText,
-              activeTab === "driver-assigned" && styles.activeTabText,
-            ]}
-          >
-            Assigned (
-            {orders.filter((o) => o.status === "driver-assigned").length})
-          </Text>
+          <View style={styles.tabContent}>
+            <Text
+              style={[
+                styles.tabText,
+                activeTab === "driver-assigned" && styles.activeTabText,
+              ]}
+            >
+              Assigned
+            </Text>
+            <Text
+              style={[
+                styles.tabCount,
+                activeTab === "driver-assigned" && styles.activeTabCount,
+              ]}
+            >
+              {orders.filter((o) => o.status === "driver-assigned").length}
+            </Text>
+          </View>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.tab, activeTab === "pickup" && styles.activeTab]}
+          onPress={() => setActiveTab("pickup")}
+        >
+          <View style={styles.tabContent}>
+            <Text
+              style={[
+                styles.tabText,
+                activeTab === "pickup" && styles.activeTabText,
+              ]}
+            >
+              Pickup
+            </Text>
+            <Text
+              style={[
+                styles.tabCount,
+                activeTab === "pickup" && styles.activeTabCount,
+              ]}
+            >
+              {orders.filter((o) => o.status === "pickup").length}
+            </Text>
+          </View>
         </TouchableOpacity>
         <TouchableOpacity
           style={[styles.tab, activeTab === "in-transit" && styles.activeTab]}
           onPress={() => setActiveTab("in-transit")}
         >
-          <Text
-            style={[
-              styles.tabText,
-              activeTab === "in-transit" && styles.activeTabText,
-            ]}
-          >
-            Transit ({orders.filter((o) => o.status === "in-transit").length})
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.tab, activeTab === "collected" && styles.activeTab]}
-          onPress={() => setActiveTab("collected")}
-        >
-          <Text
-            style={[
-              styles.tabText,
-              activeTab === "collected" && styles.activeTabText,
-            ]}
-          >
-            Collected ({orders.filter((o) => o.status === "collected").length})
-          </Text>
+          <View style={styles.tabContent}>
+            <Text
+              style={[
+                styles.tabText,
+                activeTab === "in-transit" && styles.activeTabText,
+              ]}
+            >
+              Transit
+            </Text>
+            <Text
+              style={[
+                styles.tabCount,
+                activeTab === "in-transit" && styles.activeTabCount,
+              ]}
+            >
+              {orders.filter((o) => o.status === "in-transit").length}
+            </Text>
+          </View>
         </TouchableOpacity>
         <TouchableOpacity
           style={[styles.tab, activeTab === "delivered" && styles.activeTab]}
           onPress={() => setActiveTab("delivered")}
         >
-          <Text
-            style={[
-              styles.tabText,
-              activeTab === "delivered" && styles.activeTabText,
-            ]}
-          >
-            Done ({orders.filter((o) => o.status === "delivered").length})
-          </Text>
+          <View style={styles.tabContent}>
+            <Text
+              style={[
+                styles.tabText,
+                activeTab === "delivered" && styles.activeTabText,
+              ]}
+            >
+              Done
+            </Text>
+            <Text
+              style={[
+                styles.tabCount,
+                activeTab === "delivered" && styles.activeTabCount,
+              ]}
+            >
+              {orders.filter((o) => o.status === "delivered").length}
+            </Text>
+          </View>
         </TouchableOpacity>
       </View>
 
       <FlatList
         data={filteredOrders}
         renderItem={renderOrderCard}
-        keyExtractor={(item) => item.id}
+        keyExtractor={(item, index) => item.id || `order-${index}`}
         contentContainerStyle={styles.listContent}
         ListEmptyComponent={renderEmptyState}
         refreshControl={
@@ -367,6 +493,16 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: Colors.background,
+  },
+  loadingContainer: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  loadingText: {
+    marginTop: 12,
+    fontSize: 16,
+    color: Colors.muted,
   },
   header: {
     flexDirection: "row",
@@ -425,12 +561,26 @@ const styles = StyleSheet.create({
   activeTab: {
     backgroundColor: Colors.primary,
   },
+  tabContent: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+  },
   tabText: {
-    fontSize: 14,
+    fontSize: 12,
     fontWeight: "600",
     color: Colors.muted,
   },
   activeTabText: {
+    color: "#fff",
+  },
+  tabCount: {
+    fontSize: 9,
+    fontWeight: "600",
+    color: Colors.muted,
+    marginLeft: 1,
+    marginTop: -2,
+  },
+  activeTabCount: {
     color: "#fff",
   },
   listContent: {
@@ -478,13 +628,13 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: Colors.muted,
   },
-  restaurantRow: {
+  clientRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
     marginBottom: 8,
   },
-  restaurantName: {
+  clientName: {
     fontSize: 15,
     fontWeight: "600",
     color: Colors.dark,
@@ -572,4 +722,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default DriverOrdersScreen;
+export default OrdersScreen;

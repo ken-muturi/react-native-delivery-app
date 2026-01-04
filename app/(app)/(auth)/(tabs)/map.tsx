@@ -1,10 +1,10 @@
 import { Colors } from '@/constants/theme';
-import useOrderStore from '@/hooks/use-orderstore';
-import { Ionicons } from '@expo/vector-icons';
-import * as Location from 'expo-location';
-import { AppleMaps, GoogleMaps } from 'expo-maps';
-import { AppleMapsMapType } from 'expo-maps/build/apple/AppleMaps.types';
-import { useRouter } from 'expo-router';
+import { useOrders } from "@/hooks/useOrders";
+import { Ionicons } from "@expo/vector-icons";
+import * as Location from "expo-location";
+import { AppleMaps, GoogleMaps } from "expo-maps";
+import { AppleMapsMapType } from "expo-maps/build/apple/AppleMaps.types";
+import { useRouter } from "expo-router";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
@@ -130,7 +130,7 @@ const DriverMapScreen = () => {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const mapRef = useRef<AppleMaps.MapView | GoogleMaps.MapView>(null);
-  const { orders } = useOrderStore();
+  const { data: orders = [] } = useOrders();
   const [driverLocation, setDriverLocation] = useState<{
     latitude: number;
     longitude: number;
@@ -249,10 +249,13 @@ const DriverMapScreen = () => {
   useEffect(() => {
     // Only fetch routes once on mount or when orders/transport mode changes
     // Avoid refetching on every driver location update
-    if (routeFetchedRef.current && activeOrders.length === routePolylines.length) {
+    if (
+      routeFetchedRef.current &&
+      activeOrders.length === routePolylines.length
+    ) {
       return;
     }
-    
+
     const timeoutId = setTimeout(() => {
       fetchAllRoutes();
       routeFetchedRef.current = true;
@@ -461,7 +464,12 @@ const DriverMapScreen = () => {
                         </Text>
                       </View>
                       <Text style={styles.cardTotal}>
-                        KES {order.total.toLocaleString()}
+                        KES{" "}
+                        {typeof order.total === "number" && !isNaN(order.total)
+                          ? order.total.toLocaleString("en-KE", {
+                              minimumFractionDigits: 2,
+                            })
+                          : "0.00"}
                       </Text>
                     </View>
                   </View>
