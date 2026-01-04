@@ -36,6 +36,12 @@ export const orderService = {
         '/api/orders',
         orderData
       );
+      
+      // Validate response structure
+      if (!response || typeof response.orderId !== 'string' || typeof response.success !== 'boolean') {
+        throw new Error('Invalid response from server');
+      }
+      
       return response;
     } catch (error) {
       console.error('Failed to create order:', error);
