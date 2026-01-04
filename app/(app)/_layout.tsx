@@ -1,15 +1,16 @@
-import useUserStore from "@/hooks/use-userstore";
+import { useAuthStore } from "@/hooks/use-userstore";
 import { Stack } from "expo-router";
+
 const RootNav = () => {
-  const { isGuest, user } = useUserStore();
-  console.log("🚀 ~ RootNav ~ isGuest:", isGuest);
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+
   return (
     <Stack>
-      <Stack.Protected guard={isGuest || user}>
+      <Stack.Protected guard={isAuthenticated}>
         <Stack.Screen name="(auth)" options={{ headerShown: false }} />
       </Stack.Protected>
 
-      <Stack.Protected guard={!isGuest && !user}>
+      <Stack.Protected guard={!isAuthenticated}>
         <Stack.Screen name="(public)" options={{ headerShown: false }} />
       </Stack.Protected>
     </Stack>

@@ -1,12 +1,12 @@
-import useUserStore from '@/hooks/use-userstore';
-import { Button, Text, View } from 'react-native';
+import { useAuthStore } from "@/hooks/use-userstore";
+import { Button, Text, View } from "react-native";
 const Page = () => {
-  const { setIsGuest } = useUserStore();
+  const { logout } = useAuthStore();
 
   return (
     <View>
       <Text>MY inside page</Text>
-      <Button title="Go login" onPress={() => setIsGuest(false)} />
+      <Button title="Go login" onPress={() => logout()} />
     </View>
   );
 };

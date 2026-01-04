@@ -1,5 +1,3 @@
-import AppleAuthButton from "@/components/Auth/AppleAuthButton";
-import GoogleAuthButton from "@/components/Auth/GoogleAuthButton";
 import SmoothInfiniteScroll from "@/components/SmoothInfiniteScroll";
 import { Colors, Fonts } from "@/constants/theme";
 import { LinearGradient } from "expo-linear-gradient";
@@ -53,16 +51,10 @@ export default function Index() {
 
         {/* Login buttons */}
         <View style={styles.buttonContainer}>
-          <Animated.View entering={FadeInDown.delay(100)}>
-            <AppleAuthButton />
-          </Animated.View>
-          <Animated.View entering={FadeInDown.delay(200)}>
-            <GoogleAuthButton />
-          </Animated.View>
           <Animated.View entering={FadeInDown.delay(300)}>
             <Link href={"/(app)/(public)/login-options"} asChild>
               <TouchableOpacity style={styles.otherButton}>
-                <Text style={styles.otherButtonText}>Other options</Text>
+                <Text style={styles.otherButtonText}>Login</Text>
               </TouchableOpacity>
             </Link>
           </Animated.View>
