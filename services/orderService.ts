@@ -1,3 +1,4 @@
+import { api } from './apiClientService';
 // import type { CartItem } from '@/hooks/use-cartstore';
 
 export interface OrderData {
@@ -30,22 +31,11 @@ export const orderService = {
    * Create a new order
    */
   createOrder: async (orderData: OrderData): Promise<{ orderId: string; success: boolean }> => {
-    // TODO: Replace with actual API call when backend is ready
-    // return fetch('/api/orders', {
-    //   method: 'POST',
-    //   headers: { 'Content-Type': 'application/json' },
-    //   body: JSON.stringify(orderData)
-    // }).then(res => res.json());
-
-    console.log('Creating order:', orderData);
-
-    // Simulate API delay
-    await new Promise((resolve) => setTimeout(resolve, 1000));
-
-    return {
-      orderId: `ORDER_${Date.now()}`,
-      success: true,
-    };
+    const response = await api.post<{ orderId: string; success: boolean }>(
+      '/orders',
+      orderData
+    );
+    return response;
   },
 
   /**
