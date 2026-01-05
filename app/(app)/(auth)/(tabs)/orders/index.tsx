@@ -1,11 +1,11 @@
 import { Colors } from '@/constants/theme';
 import { OrderStatus } from "@/data/orders";
-import { useAuthStore } from "@/hooks/use-userstore";
 import {
   useAssignDriver,
   useOrders,
   useUpdateOrderStatus,
 } from "@/hooks/useOrders";
+import { useAuthStore } from "@/hooks/useUser";
 import {
   requestNotificationPermissions,
   sendDriverAssignedNotification,
@@ -212,16 +212,6 @@ const OrdersScreen = () => {
       <View style={styles.orderHeader}>
         <View style={styles.orderIdContainer}>
           <Text style={styles.orderId}>{order.id}</Text>
-          <View
-            style={[
-              styles.statusBadge,
-              { backgroundColor: statusColors[order.status as OrderStatus] },
-            ]}
-          >
-            <Text style={styles.statusText}>
-              {statusLabels[order.status as OrderStatus]}
-            </Text>
-          </View>
         </View>
         <Text style={styles.orderTime}>
           {new Date(order.createdAt || new Date()).toLocaleTimeString("en-KE", {

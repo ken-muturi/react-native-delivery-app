@@ -1,37 +1,35 @@
-import { useAuthStore } from '@/hooks/use-userstore';
-import { useRouter } from 'expo-router'; // or use navigation from react-navigation
-import React, { useState } from 'react';
+import { useAuthStore } from "@/hooks/useUser";
+import React, { useState } from "react";
 import {
-    ActivityIndicator,
-    KeyboardAvoidingView,
-    Platform,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View
-} from 'react-native';
+  ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from "react-native";
 
 export default function Login() {
-   const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const { login, isLoading } = useAuthStore();
-  const router = useRouter();
 
   const handleLogin = async () => {
     try {
       await login(email, password);
-      console.log('[Login] Success! isAuthenticated should now be true');
+      console.log("[Login] Success! isAuthenticated should now be true");
       // Stack.Protected in _layout.tsx should auto-redirect when isAuthenticated changes
     } catch (err) {
-        console.error('Login failed:', err);
-      alert('Login failed');
+      console.error("Login failed:", err);
+      alert("Login failed");
     }
   };
 
   return (
     <KeyboardAvoidingView
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
       style={styles.container}
     >
       <View style={styles.formContainer}>
@@ -77,60 +75,60 @@ export default function Login() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: "#f5f5f5",
   },
   formContainer: {
     flex: 1,
-    justifyContent: 'center',
+    justifyContent: "center",
     paddingHorizontal: 24,
   },
   title: {
     fontSize: 32,
-    fontWeight: 'bold',
+    fontWeight: "bold",
     marginBottom: 8,
-    color: '#333',
+    color: "#333",
   },
   subtitle: {
     fontSize: 16,
-    color: '#666',
+    color: "#666",
     marginBottom: 32,
   },
   input: {
-    backgroundColor: '#fff',
+    backgroundColor: "#fff",
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderRadius: 8,
     marginBottom: 16,
     fontSize: 16,
     borderWidth: 1,
-    borderColor: '#ddd',
+    borderColor: "#ddd",
   },
   button: {
-    backgroundColor: '#007AFF',
+    backgroundColor: "#007AFF",
     paddingVertical: 14,
     borderRadius: 8,
-    alignItems: 'center',
+    alignItems: "center",
     marginTop: 8,
   },
   buttonDisabled: {
     opacity: 0.6,
   },
   buttonText: {
-    color: '#fff',
+    color: "#fff",
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   error: {
-    color: '#ff3b30',
+    color: "#ff3b30",
     marginBottom: 16,
-    textAlign: 'center',
+    textAlign: "center",
   },
   forgotPassword: {
     marginTop: 16,
-    alignItems: 'center',
+    alignItems: "center",
   },
   forgotPasswordText: {
-    color: '#007AFF',
+    color: "#007AFF",
     fontSize: 14,
   },
 });

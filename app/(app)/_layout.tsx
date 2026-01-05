@@ -1,9 +1,9 @@
-import { useAuthStore } from "@/hooks/use-userstore";
+import { useAuthStore } from "@/hooks/useUser";
 import { Stack } from "expo-router";
 
 const RootNav = () => {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
-  
+
   console.log("[RootNav] isAuthenticated:", isAuthenticated);
 
   return (

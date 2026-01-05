@@ -1,8 +1,9 @@
-import { useAuthStore } from '@/hooks/use-userstore';
-import axios from 'axios';
-import { router } from 'expo-router';
+import { useAuthStore } from "@/hooks/useUser";
+import axios from "axios";
+import { router } from "expo-router";
 
-const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'https://your-nextjs-app.com';
+const API_BASE_URL =
+  process.env.EXPO_PUBLIC_API_URL || "https://your-nextjs-app.com";
 const EXTERNAL_API_KEY = process.env.EXPO_PUBLIC_EXTERNAL_API_KEY || "";
 
 // Create axios instance
@@ -74,19 +75,9 @@ apiClient.interceptors.response.use(
   }
 );
 
-// API Methods
+// API Methods - Generic HTTP methods only
+// Specific endpoints should be in their respective services (userService, orderService, etc.)
 export const api = {
-  // User endpoints
-  getProfile: async () => {
-    const response = await apiClient.get("/user/profile");
-    return response.data;
-  },
-
-  updateProfile: async (data: any) => {
-    const response = await apiClient.put("/user/profile", data);
-    return response.data;
-  },
-
   // Generic methods - handle API response structure { success: true, data: ... }
   get: async <T = any>(endpoint: string, params?: any): Promise<T> => {
     const response = await apiClient.get(endpoint, { params });
