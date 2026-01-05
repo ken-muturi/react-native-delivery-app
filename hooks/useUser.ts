@@ -146,12 +146,16 @@ export const useAuthStore = create<AuthState>()(
 
         try {
           // Optional: Call logout endpoint
-          // const token = get().token;
-          // if (token) {
-          //   await axios.post(`${API_URL}/logout`, {}, {
-          //     headers: { Authorization: `Bearer ${token}` }
-          //   });
-          // }
+          const token = get().token;
+          if (token) {
+            await axios.post(
+              `${API_URL}/logout`,
+              {},
+              {
+                headers: { Authorization: `Bearer ${token}` },
+              }
+            );
+          }
 
           set({
             user: null,

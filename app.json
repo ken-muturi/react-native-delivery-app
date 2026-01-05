@@ -37,6 +37,11 @@
         "android.permission.CAMERA",
         "android.permission.RECORD_AUDIO"
       ],
+      "config": {
+        "googleMaps": {
+          "apiKey": "AIzaSyA_L0N3qzk2TYJggQiLX-RQPqb4ImGWKLk"
+        }
+      },
       "package": "com.anonymous.deliveryapp"
     },
     "web": {

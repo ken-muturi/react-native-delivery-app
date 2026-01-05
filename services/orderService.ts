@@ -103,25 +103,22 @@ export const orderService = {
   /**
    * Assign driver to order
    */
-  assignDriver: async (
-    orderId: string,
-    driverId: string
-  ): Promise<OrderData> => {
-    return api.patch<OrderData>(`/api/orders/${orderId}/assign`, { driverId });
+  assignDriver: async (id: string, driverId: string): Promise<OrderData> => {
+    return api.patch<OrderData>(`/api/orders/${id}`, { driverId });
   },
 
   /**
    * Mark order as collected
    */
-  markCollected: async (orderId: string): Promise<OrderData> => {
-    return api.patch<OrderData>(`/api/orders/${orderId}/collected`, {});
+  markCollected: async (id: string, status: string): Promise<OrderData> => {
+    return api.patch<OrderData>(`/api/orders/${id}`, { status });
   },
 
   /**
    * Mark order as delivered
    */
-  markDelivered: async (orderId: string): Promise<OrderData> => {
-    return api.patch<OrderData>(`/api/orders/${orderId}/delivered`, {});
+  markDelivered: async (id: string, status: string): Promise<OrderData> => {
+    return api.patch<OrderData>(`/api/orders/${id}`, { status });
   },
   /**
    * Calculate fees based on cart total and distance (in KES)

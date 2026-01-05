@@ -12,7 +12,7 @@ import {
 } from "@/services/notificationService";
 import { OrderData } from "@/services/orderService";
 import { Ionicons } from "@expo/vector-icons";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -92,7 +92,10 @@ const OrdersScreen = () => {
     return [];
   }, [apiOrders]);
 
-  const [activeTab, setActiveTab] = useState<TabType>("new");
+  // Default to "driver-assigned" for drivers, "new" for admins
+  const [activeTab, setActiveTab] = useState<TabType>(
+    isAdmin ? "new" : "driver-assigned"
+  );
   const [refreshing, setRefreshing] = useState(false);
 
   // Request notification permissions on mount
@@ -207,77 +210,80 @@ const OrdersScreen = () => {
     );
   };
 
-  const renderOrderCard = ({ item: order }: { item: OrderData }) => (
-    <View style={styles.orderCard}>
-      <View style={styles.orderHeader}>
-        <View style={styles.orderIdContainer}>
-          <Text style={styles.orderId}>{order.id}</Text>
-        </View>
-        <Text style={styles.orderTime}>
-          {new Date(order.createdAt || new Date()).toLocaleTimeString("en-KE", {
-            hour: "2-digit",
-            minute: "2-digit",
-          })}
-        </Text>
-      </View>
-
-      <View style={styles.clientRow}>
-        <Ionicons name="restaurant-outline" size={16} color={Colors.muted} />
-        <Text style={styles.clientName}>{order.clientName}</Text>
-      </View>
-
-      <View style={styles.addressRow}>
-        <Ionicons name="location-outline" size={16} color={Colors.muted} />
-        <Text style={styles.address} numberOfLines={2}>
-          {order.deliveryAddress}
-        </Text>
-      </View>
-
-      <View style={styles.customerRow}>
-        <Ionicons name="person-outline" size={16} color={Colors.muted} />
-        <Text style={styles.customerName}>{order.customerName}</Text>
-        <TouchableOpacity
-          style={styles.callButton}
-          onPress={() => Alert.alert("Call", `Calling ${order.customerPhone}`)}
-        >
-          <Ionicons name="call-outline" size={16} color="#007AFF" />
-        </TouchableOpacity>
-      </View>
-
-      <View style={styles.itemsContainer}>
-        <Text style={styles.itemsTitle}>Items:</Text>
-        {order.items.map((item, index) => (
-          <Text key={index} style={styles.itemText}>
-            {item.quantity}x {item.name}
+  const renderOrderCard = ({ item: order }: { item: OrderData }) => {
+    return (
+      <View style={styles.orderCard}>
+        <View style={styles.orderHeader}>
+          <View style={styles.orderIdContainer}>
+            <Text style={styles.orderId}>{order.id}</Text>
+          </View>
+          <Text style={styles.orderTime}>
+            {new Date(order.createdAt || new Date()).toLocaleTimeString(
+              "en-KE",
+              {
+                hour: "2-digit",
+                minute: "2-digit",
+              }
+            )}
           </Text>
-        ))}
-      </View>
+        </View>
 
-      <View style={styles.orderFooter}>
-        <Text style={styles.totalText}>
-          Total: KES{" "}
-          {typeof order.total === "number" && !isNaN(order.total)
-            ? order.total.toLocaleString("en-KE", { minimumFractionDigits: 2 })
-            : "0.00"}
-        </Text>
-        {/* Show action button only if there's a valid next action */}
-        {order.status !== "delivered" &&
-          getActionLabel(order.status as OrderStatus) !== "" && (
-            <TouchableOpacity
-              style={[
-                styles.actionButton,
-                { backgroundColor: statusColors[order.status as OrderStatus] },
-              ]}
-              onPress={() => handleStatusUpdate(order)}
-            >
-              <Text style={styles.actionButtonText}>
-                {getActionLabel(order.status as OrderStatus)}
-              </Text>
-            </TouchableOpacity>
-          )}
+        <View style={styles.clientRow}>
+          <Ionicons name="restaurant-outline" size={16} color={Colors.muted} />
+          <Text style={styles.clientName}>{order.clientName}</Text>
+        </View>
+
+        <View style={styles.addressRow}>
+          <Ionicons name="location-outline" size={16} color={Colors.muted} />
+          <Text style={styles.address} numberOfLines={2}>
+            {order.deliveryAddress}
+          </Text>
+        </View>
+
+        <View style={styles.customerRow}>
+          <Ionicons name="person-outline" size={16} color={Colors.muted} />
+          <Text style={styles.customerName}>{order.customerName}</Text>
+          <TouchableOpacity
+            style={styles.callButton}
+            onPress={() =>
+              Alert.alert("Call", `Calling ${order.customerPhone}`)
+            }
+          >
+            <Ionicons name="call-outline" size={16} color="#007AFF" />
+          </TouchableOpacity>
+        </View>
+
+        <View style={styles.itemsContainer}>
+          <Text style={styles.itemsTitle}>Items:</Text>
+          {order.items.map((item, index) => (
+            <Text key={index} style={styles.itemText}>
+              {item.quantity}x {item.name}
+            </Text>
+          ))}
+        </View>
+
+        <View style={styles.orderFooter}>
+          {/* Show action button only if there's a valid next action */}
+          {order.status !== "delivered" &&
+            getActionLabel(order.status as OrderStatus) !== "" && (
+              <TouchableOpacity
+                style={[
+                  styles.actionButton,
+                  {
+                    backgroundColor: statusColors[order.status as OrderStatus],
+                  },
+                ]}
+                onPress={() => handleStatusUpdate(order)}
+              >
+                <Text style={styles.actionButtonText}>
+                  {getActionLabel(order.status as OrderStatus)}
+                </Text>
+              </TouchableOpacity>
+            )}
+        </View>
       </View>
-    </View>
-  );
+    );
+  };
 
   const renderEmptyState = () => (
     <View style={styles.emptyState}>
@@ -344,29 +350,32 @@ const OrdersScreen = () => {
       </View>
 
       <View style={styles.tabContainer}>
-        <TouchableOpacity
-          style={[styles.tab, activeTab === "new" && styles.activeTab]}
-          onPress={() => setActiveTab("new")}
-        >
-          <View style={styles.tabContent}>
-            <Text
-              style={[
-                styles.tabText,
-                activeTab === "new" && styles.activeTabText,
-              ]}
-            >
-              New
-            </Text>
-            <Text
-              style={[
-                styles.tabCount,
-                activeTab === "new" && styles.activeTabCount,
-              ]}
-            >
-              {orders.filter((o) => o.status === "new").length}
-            </Text>
-          </View>
-        </TouchableOpacity>
+        {/* Only show New tab for admins */}
+        {isAdmin && (
+          <TouchableOpacity
+            style={[styles.tab, activeTab === "new" && styles.activeTab]}
+            onPress={() => setActiveTab("new")}
+          >
+            <View style={styles.tabContent}>
+              <Text
+                style={[
+                  styles.tabText,
+                  activeTab === "new" && styles.activeTabText,
+                ]}
+              >
+                New
+              </Text>
+              <Text
+                style={[
+                  styles.tabCount,
+                  activeTab === "new" && styles.activeTabCount,
+                ]}
+              >
+                {orders.filter((o) => o.status === "new").length}
+              </Text>
+            </View>
+          </TouchableOpacity>
+        )}
         <TouchableOpacity
           style={[
             styles.tab,
@@ -404,7 +413,7 @@ const OrdersScreen = () => {
                 activeTab === "pickup" && styles.activeTabText,
               ]}
             >
-              Pickup
+              Picked
             </Text>
             <Text
               style={[
@@ -427,7 +436,7 @@ const OrdersScreen = () => {
                 activeTab === "in-transit" && styles.activeTabText,
               ]}
             >
-              Transit
+              In-transit
             </Text>
             <Text
               style={[
@@ -450,7 +459,7 @@ const OrdersScreen = () => {
                 activeTab === "delivered" && styles.activeTabText,
               ]}
             >
-              Done
+              Delivered
             </Text>
             <Text
               style={[
