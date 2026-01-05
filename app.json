@@ -39,7 +39,7 @@
       ],
       "config": {
         "googleMaps": {
-          "apiKey": "AIzaSyA_L0N3qzk2TYJggQiLX-RQPqb4ImGWKLk"
+          "apiKey": "${GOOGLE_MAPS_API_KEY}"
         }
       },
       "package": "com.anonymous.deliveryapp"
