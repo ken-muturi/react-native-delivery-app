@@ -1,18 +1,19 @@
-import { Colors } from '@/constants/theme';
-import { OrderStatus } from "@/data/orders";
+import { Colors } from "@/constants/theme";
 import {
   useAssignDriver,
   useOrders,
   useUpdateOrderStatus,
 } from "@/hooks/useOrders";
+import { useOrderStatus } from "@/hooks/useOrderStatus";
 import { useAuthStore } from "@/hooks/useUser";
 import {
   requestNotificationPermissions,
   sendDriverAssignedNotification,
 } from "@/services/notificationService";
 import { OrderData } from "@/services/orderService";
+import { OrderStatus } from "@/services/orderStatusService";
 import { Ionicons } from "@expo/vector-icons";
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -27,76 +28,49 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 type TabType = OrderStatus;
 
-const statusColors: Record<OrderStatus, string> = {
-  new: "#FF9500",
-  "driver-assigned": "#FF6B35",
-  pickup: "#007AFF",
-  "in-transit": "#5856D6",
-  delivered: "#34C759",
-};
-
-const statusLabels: Record<OrderStatus, string> = {
-  new: "New Order",
-  "driver-assigned": "Driver Assigned",
-  pickup: "Pickup",
-  "in-transit": "In Transit",
-  delivered: "Delivered",
-};
-
 const OrdersScreen = () => {
   const insets = useSafeAreaInsets();
+
+  const [activeTab, setActiveTab] = React.useState<TabType | null>(null);
+  const [refreshing, setRefreshing] = React.useState(false);
 
   // Get current user (driver)
   const user = useAuthStore((state) => state.user);
   const isAdmin = user?.role === "admin";
 
+  // Get order statuses from API
+  const { data: orderStatus, isLoading: isOrderStatusLoading } =
+    useOrderStatus();
+
   // API-based orders (React Query) - API handles role-based filtering via auth token
-  const { data: apiOrders, isLoading, isError, error, refetch } = useOrders();
+  const {
+    data: apiOrders,
+    isLoading,
+    refetch,
+    error: ordersError,
+  } = useOrders();
   const updateStatusMutation = useUpdateOrderStatus();
   const assignDriverMutation = useAssignDriver();
 
-  // Debug logging
-  useEffect(() => {
-    console.log("[OrdersScreen] apiOrders:", apiOrders?.length, "total");
-    console.log("[OrdersScreen] isLoading:", isLoading);
-    console.log("[OrdersScreen] isError:", isError);
-    if (isError) console.log("[OrdersScreen] error:", error);
-    // Log unique statuses from API
-    if (apiOrders && apiOrders.length > 0) {
-      const statuses = [...new Set(apiOrders.map((o) => o.status))];
-      console.log("[OrdersScreen] Unique statuses from API:", statuses);
-    }
-  }, [apiOrders, isLoading, isError, error]);
-
-  // Map API status to frontend status (handle legacy "collected" status)
-  const mapStatus = (status: string): OrderStatus => {
-    if (status === "collected") return "pickup";
-    return (status as OrderStatus) || "new";
-  };
-
   // Map API orders to include required fields
   const orders: OrderData[] = useMemo(() => {
-    console.log(
-      "[OrdersScreen] Processing apiOrders:",
-      apiOrders?.length || 0,
-      "items"
-    );
     if (apiOrders && apiOrders.length > 0) {
       return apiOrders.map((order) => ({
         ...order,
         id: order.id || "",
-        status: mapStatus(order.status || "new"),
+        status: order.status,
         createdAt: order.createdAt || new Date().toISOString(),
       }));
     }
     return [];
   }, [apiOrders]);
 
-  // Default to "driver-assigned" for drivers, "new" for admins
-  const [activeTab, setActiveTab] = useState<TabType>(
-    isAdmin ? "new" : "driver-assigned"
-  );
-  const [refreshing, setRefreshing] = useState(false);
+  // Update activeTab when orderStatus loads
+  useEffect(() => {
+    if (orderStatus && orderStatus.length > 0 && !activeTab) {
+      setActiveTab(isAdmin ? orderStatus[0] : orderStatus[1]);
+    }
+  }, [orderStatus, isAdmin, activeTab]);
 
   // Request notification permissions on mount
   useEffect(() => {
@@ -104,7 +78,9 @@ const OrdersScreen = () => {
   }, []);
 
   // Filter orders by active tab (role filtering is done server-side)
-  const filteredOrders = orders.filter((order) => order.status === activeTab);
+  const filteredOrders = orders.filter(
+    (order) => order.status === activeTab?.abbrev,
+  );
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -117,32 +93,35 @@ const OrdersScreen = () => {
     }
   }, [refetch]);
 
+  const getOrderStatus = (abbrev?: string): OrderStatus | null => {
+    if (!abbrev || !orderStatus) return null;
+    return orderStatus?.find((status) => status.abbrev === abbrev) || null;
+  };
+
   // For drivers, skip "new" status - they can only see assigned orders
   const getNextStatus = (currentStatus: OrderStatus): OrderStatus | null => {
-    switch (currentStatus) {
+    switch (currentStatus.abbrev) {
       case "new":
         // Only admins can assign drivers
-        return isAdmin ? "driver-assigned" : null;
+        return isAdmin ? getOrderStatus("driver-assigned") : null;
       case "driver-assigned":
-        return "pickup";
+        return getOrderStatus("pickup");
       case "pickup":
-        return "in-transit";
-      case "in-transit":
-        return "delivered";
+        return getOrderStatus("delivered");
       default:
         return null;
     }
   };
 
-  const getActionLabel = (status: OrderStatus): string => {
+  const getActionLabel = (status: string): string => {
     switch (status) {
       case "new":
         return isAdmin ? "Assign Driver" : "";
       case "driver-assigned":
-        return "Mark Pickup";
-      case "pickup":
+        return "Mark Picked Up";
+      case "picked-up":
         return "Start Delivery";
-      case "in-transit":
+      case "delivered":
         return "Mark Delivered";
       default:
         return "";
@@ -150,19 +129,25 @@ const OrdersScreen = () => {
   };
 
   const handleStatusUpdate = (order: OrderData) => {
-    const nextStatus = getNextStatus(order.status as OrderStatus);
+    const statusObj = getOrderStatus(order.status);
+    if (!statusObj) return;
+
+    const nextStatus = getNextStatus(statusObj);
     if (!nextStatus) return;
 
     Alert.alert(
       "Update Order Status",
-      `Change order status to "${statusLabels[nextStatus]}"?`,
+      `Change order status to "${nextStatus.title}"?`,
       [
         { text: "Cancel", style: "cancel" },
         {
           text: "Confirm",
           onPress: async () => {
             // For new orders, assign the current driver
-            if (order.status === "new" && nextStatus === "driver-assigned") {
+            if (
+              order.status === "new" &&
+              nextStatus.abbrev === "driver-assigned"
+            ) {
               if (!user?.id) {
                 Alert.alert("Error", "User not found. Please log in again.");
                 return;
@@ -174,22 +159,22 @@ const OrdersScreen = () => {
                   onSuccess: async () => {
                     await sendDriverAssignedNotification(
                       order.id || "",
-                      order.clientName
+                      order.clientName,
                     );
                   },
                   onError: (error) => {
                     Alert.alert(
                       "Error",
-                      "Failed to assign driver. Please try again."
+                      "Failed to assign driver. Please try again.",
                     );
                     console.warn("Failed to assign driver:", error);
                   },
-                }
+                },
               );
             } else {
               // For other status updates, just update the status
               updateStatusMutation.mutate(
-                { orderId: order.id || "", status: nextStatus },
+                { orderId: order.id || "", status: nextStatus.abbrev },
                 {
                   onSuccess: async () => {
                     // Additional handling if needed
@@ -197,20 +182,21 @@ const OrdersScreen = () => {
                   onError: (error) => {
                     Alert.alert(
                       "Error",
-                      "Failed to update order status. Please try again."
+                      "Failed to update order status. Please try again.",
                     );
                     console.warn("Failed to update order status:", error);
                   },
-                }
+                },
               );
             }
           },
         },
-      ]
+      ],
     );
   };
 
   const renderOrderCard = ({ item: order }: { item: OrderData }) => {
+    const orderStatusObj = getOrderStatus(order.status);
     return (
       <View style={styles.orderCard}>
         <View style={styles.orderHeader}>
@@ -223,7 +209,7 @@ const OrdersScreen = () => {
               {
                 hour: "2-digit",
                 minute: "2-digit",
-              }
+              },
             )}
           </Text>
         </View>
@@ -252,6 +238,22 @@ const OrdersScreen = () => {
             <Ionicons name="call-outline" size={16} color="#007AFF" />
           </TouchableOpacity>
         </View>
+        {order.driver && (
+          <View style={styles.customerRow}>
+            <Ionicons name="bicycle-outline" size={16} color={Colors.muted} />
+            <Text style={styles.customerName}>
+              {order.driver?.firstname} {order.driver?.othernames}
+            </Text>
+            <TouchableOpacity
+              style={styles.callButton}
+              onPress={() =>
+                Alert.alert("Call", `Calling ${order.driver?.phone}`)
+              }
+            >
+              <Ionicons name="call-outline" size={16} color="#007AFF" />
+            </TouchableOpacity>
+          </View>
+        )}
 
         <View style={styles.itemsContainer}>
           <Text style={styles.itemsTitle}>Items:</Text>
@@ -264,22 +266,21 @@ const OrdersScreen = () => {
 
         <View style={styles.orderFooter}>
           {/* Show action button only if there's a valid next action */}
-          {order.status !== "delivered" &&
-            getActionLabel(order.status as OrderStatus) !== "" && (
-              <TouchableOpacity
-                style={[
-                  styles.actionButton,
-                  {
-                    backgroundColor: statusColors[order.status as OrderStatus],
-                  },
-                ]}
-                onPress={() => handleStatusUpdate(order)}
-              >
-                <Text style={styles.actionButtonText}>
-                  {getActionLabel(order.status as OrderStatus)}
-                </Text>
-              </TouchableOpacity>
-            )}
+          {order.status !== "delivered" && orderStatusObj && (
+            <TouchableOpacity
+              style={[
+                styles.actionButton,
+                {
+                  backgroundColor: orderStatusObj?.color || Colors.muted,
+                },
+              ]}
+              onPress={() => handleStatusUpdate(order)}
+            >
+              <Text style={styles.actionButtonText}>
+                {getActionLabel(order.status || "new")}
+              </Text>
+            </TouchableOpacity>
+          )}
         </View>
       </View>
     );
@@ -287,34 +288,10 @@ const OrdersScreen = () => {
 
   const renderEmptyState = () => (
     <View style={styles.emptyState}>
-      <Ionicons
-        name={
-          activeTab === "new"
-            ? "notifications-outline"
-            : activeTab === "driver-assigned"
-            ? "person-outline"
-            : activeTab === "pickup"
-            ? "bag-handle-outline"
-            : activeTab === "in-transit"
-            ? "bicycle-outline"
-            : "receipt-outline"
-        }
-        size={64}
-        color={Colors.muted}
-      />
-      <Text style={styles.emptyTitle}>
-        {activeTab === "new" && "No New Orders"}
-        {activeTab === "driver-assigned" && "No Assigned Orders"}
-        {activeTab === "pickup" && "No Pickup Orders"}
-        {activeTab === "in-transit" && "No Orders In Transit"}
-        {activeTab === "delivered" && "No Delivered Orders"}
-      </Text>
+      <Ionicons name={"receipt-outline"} size={64} color={Colors.muted} />
+      <Text style={styles.emptyTitle}>No {activeTab?.title} Orders</Text>
       <Text style={styles.emptySubtitle}>
-        {activeTab === "new" && "New orders will appear here"}
-        {activeTab === "driver-assigned" && "Assigned orders will appear here"}
-        {activeTab === "pickup" && "Pickup orders will appear here"}
-        {activeTab === "in-transit" && "Orders in transit will appear here"}
-        {activeTab === "delivered" && "Completed deliveries will show here"}
+        {activeTab?.title} orders will appear here
       </Text>
     </View>
   );
@@ -329,6 +306,48 @@ const OrdersScreen = () => {
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={Colors.primary} />
           <Text style={styles.loadingText}>Loading orders...</Text>
+        </View>
+      </View>
+    );
+  }
+
+  // Show error state
+  if (ordersError) {
+    return (
+      <View style={[styles.container, { paddingTop: insets.top }]}>
+        <View style={styles.header}>
+          <Text style={styles.headerTitle}>Orders</Text>
+        </View>
+        <View style={styles.loadingContainer}>
+          <Ionicons
+            name="alert-circle-outline"
+            size={64}
+            color={Colors.danger}
+          />
+          <Text style={styles.loadingText}>Failed to load orders</Text>
+          <Text
+            style={{
+              color: Colors.muted,
+              marginTop: 8,
+              textAlign: "center",
+              paddingHorizontal: 20,
+            }}
+          >
+            {ordersError instanceof Error
+              ? ordersError.message
+              : "Unknown error"}
+          </Text>
+          <TouchableOpacity
+            style={{
+              marginTop: 16,
+              padding: 12,
+              backgroundColor: Colors.primary,
+              borderRadius: 8,
+            }}
+            onPress={() => refetch()}
+          >
+            <Text style={{ color: "white" }}>Retry</Text>
+          </TouchableOpacity>
         </View>
       </View>
     );
@@ -350,127 +369,43 @@ const OrdersScreen = () => {
       </View>
 
       <View style={styles.tabContainer}>
-        {/* Only show New tab for admins */}
-        {isAdmin && (
-          <TouchableOpacity
-            style={[styles.tab, activeTab === "new" && styles.activeTab]}
-            onPress={() => setActiveTab("new")}
-          >
-            <View style={styles.tabContent}>
-              <Text
-                style={[
-                  styles.tabText,
-                  activeTab === "new" && styles.activeTabText,
-                ]}
-              >
-                New
-              </Text>
-              <Text
-                style={[
-                  styles.tabCount,
-                  activeTab === "new" && styles.activeTabCount,
-                ]}
-              >
-                {orders.filter((o) => o.status === "new").length}
-              </Text>
-            </View>
-          </TouchableOpacity>
-        )}
-        <TouchableOpacity
-          style={[
-            styles.tab,
-            activeTab === "driver-assigned" && styles.activeTab,
-          ]}
-          onPress={() => setActiveTab("driver-assigned")}
-        >
-          <View style={styles.tabContent}>
-            <Text
+        {orderStatus?.map((status) => {
+          if (!isAdmin && status.abbrev === "new") return null; // Skip "new" tab for non-admins
+          return (
+            <TouchableOpacity
+              key={status.id}
               style={[
-                styles.tabText,
-                activeTab === "driver-assigned" && styles.activeTabText,
+                styles.tab,
+                activeTab?.id === status.id && styles.activeTab,
               ]}
+              onPress={() => setActiveTab(status)}
             >
-              Assigned
-            </Text>
-            <Text
-              style={[
-                styles.tabCount,
-                activeTab === "driver-assigned" && styles.activeTabCount,
-              ]}
-            >
-              {orders.filter((o) => o.status === "driver-assigned").length}
-            </Text>
-          </View>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.tab, activeTab === "pickup" && styles.activeTab]}
-          onPress={() => setActiveTab("pickup")}
-        >
-          <View style={styles.tabContent}>
-            <Text
-              style={[
-                styles.tabText,
-                activeTab === "pickup" && styles.activeTabText,
-              ]}
-            >
-              Picked
-            </Text>
-            <Text
-              style={[
-                styles.tabCount,
-                activeTab === "pickup" && styles.activeTabCount,
-              ]}
-            >
-              {orders.filter((o) => o.status === "pickup").length}
-            </Text>
-          </View>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.tab, activeTab === "in-transit" && styles.activeTab]}
-          onPress={() => setActiveTab("in-transit")}
-        >
-          <View style={styles.tabContent}>
-            <Text
-              style={[
-                styles.tabText,
-                activeTab === "in-transit" && styles.activeTabText,
-              ]}
-            >
-              In-transit
-            </Text>
-            <Text
-              style={[
-                styles.tabCount,
-                activeTab === "in-transit" && styles.activeTabCount,
-              ]}
-            >
-              {orders.filter((o) => o.status === "in-transit").length}
-            </Text>
-          </View>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.tab, activeTab === "delivered" && styles.activeTab]}
-          onPress={() => setActiveTab("delivered")}
-        >
-          <View style={styles.tabContent}>
-            <Text
-              style={[
-                styles.tabText,
-                activeTab === "delivered" && styles.activeTabText,
-              ]}
-            >
-              Delivered
-            </Text>
-            <Text
-              style={[
-                styles.tabCount,
-                activeTab === "delivered" && styles.activeTabCount,
-              ]}
-            >
-              {orders.filter((o) => o.status === "delivered").length}
-            </Text>
-          </View>
-        </TouchableOpacity>
+              <View style={styles.tabContent}>
+                <Text
+                  style={[
+                    styles.tabText,
+                    activeTab?.id === status.id && styles.activeTabText,
+                  ]}
+                >
+                  {status.title}
+                </Text>
+                <Text
+                  style={[
+                    styles.tabCount,
+                    activeTab === status && styles.activeTabCount,
+                  ]}
+                >
+                  {
+                    orders.filter(
+                      (o) =>
+                        o.status?.toLowerCase() === status.title.toLowerCase(),
+                    ).length
+                  }
+                </Text>
+              </View>
+            </TouchableOpacity>
+          );
+        })}
       </View>
 
       <FlatList
@@ -486,7 +421,7 @@ const OrdersScreen = () => {
       />
     </View>
   );
-};
+};;
 
 const styles = StyleSheet.create({
   container: {

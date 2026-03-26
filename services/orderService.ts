@@ -6,6 +6,22 @@ export interface OrderItem {
   price: number;
 }
 
+type DriverInfo = {
+  id: string;
+  firstname: string;
+  othernames: string;
+  phone: string;
+  city?: string;
+  vehicleInfo?: string;
+  vehicleType?: string;
+  vehicleDocuments?: string;
+  licenseNo?: string;
+  licenseExpiryDate?: Date;
+  insurancePolicyNo?: string;
+  insuranceExpiryDate?: Date;
+  licensePlate?: string;
+};
+
 export interface OrderData {
   id?: string;
   clientId: string;
@@ -29,6 +45,7 @@ export interface OrderData {
   driverId?: string;
   createdAt?: string;
   updatedAt?: string;
+  driver?: DriverInfo;
 }
 
 export const orderService = {

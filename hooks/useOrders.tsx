@@ -96,41 +96,41 @@ export const useAssignDriver = () => {
 /**
  * Hook to mark order as collected
  */
-export const useMarkCollected = () => {
-  const queryClient = useQueryClient();
+// export const useMarkCollected = () => {
+//   const queryClient = useQueryClient();
 
-  return useMutation({
-    mutationFn: (orderId: string) => orderService.markCollected(orderId),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["orders"] });
-    },
-  });
-};
+//   return useMutation({
+//     mutationFn: (orderId: string) => orderService.markCollected(orderId),
+//     onSuccess: () => {
+//       queryClient.invalidateQueries({ queryKey: ["orders"] });
+//     },
+//   });
+// };
 
 /**
  * Hook to mark order as delivered
  */
-export const useMarkDelivered = () => {
-  const queryClient = useQueryClient();
+// export const useMarkDelivered = () => {
+//   const queryClient = useQueryClient();
 
-  return useMutation({
-    mutationFn: (orderId: string) => orderService.markDelivered(orderId),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["orders"] });
-    },
-  });
-};
+//   return useMutation({
+//     mutationFn: (orderId: string) => orderService.markDelivered(orderId),
+//     onSuccess: () => {
+//       queryClient.invalidateQueries({ queryKey: ["orders"] });
+//     },
+//   });
+// };
 
 /**
  * Hook to cancel an order
  */
-export const useCancelOrder = () => {
-  const queryClient = useQueryClient();
+// export const useCancelOrder = () => {
+//   const queryClient = useQueryClient();
 
-  return useMutation({
-    mutationFn: (orderId: string) => orderService.cancel(orderId),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["orders"] });
-    },
-  });
-};
+//   return useMutation({
+//     mutationFn: (orderId: string) => orderService.cancel(orderId),
+//     onSuccess: () => {
+//       queryClient.invalidateQueries({ queryKey: ["orders"] });
+//     },
+//   });
+// };
